@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+target/
+.env
+.env.local
+*.log
+coverage/
+.DS_Store
+/data/
+*.sqlite
+*.sqlite-journal
+/apps/desktop/src-tauri/target/
+/infrastructure/backup/dumps/
+secrets/
+
+# Schriften werden per scripts/fetch-fonts.sh geholt
+apps/desktop/src-tauri/fonts/*.ttf
