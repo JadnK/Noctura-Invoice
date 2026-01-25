@@ -1,0 +1,14 @@
+{
+  "name": "@noctura/invoice-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reine Berechnungslogik fuer Belege: Geld, Steuern, Rabatte, Nummernkreise, Status.",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
