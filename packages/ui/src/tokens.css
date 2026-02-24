@@ -1,0 +1,146 @@
+/*
+ * Noctura Designsystem — Tokens
+ *
+ * Nur Dark Mode. Kein Umschalter, kein :root.light. Die Palette ist eine
+ * Nachtpalette mit blauem Unterton: nichts ist reines Schwarz, nichts ist
+ * reines Weiss. Der hellste Text liegt bei #E8ECF4, damit lange Sitzungen
+ * vor einer Rechnungsliste nicht blenden.
+ *
+ * Kontraste sind gegen die jeweilige Flaeche geprueft: Fliesstext >= 7:1,
+ * Sekundaertext >= 4.5:1, Rahmen und Trenner >= 3:1 gegen den Untergrund.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Flaechen, von tief nach hoch */
+  --n-canvas:        #14171D;  /* App-Hintergrund, Anthrazit mit Blaustich */
+  --n-sidebar:       #191D25;  /* Navigation, eine Stufe heller */
+  --n-surface:       #1E232C;  /* Karten, Tabellenkopf */
+  --n-surface-raised:#242A34;  /* Dialoge, Popover, Command-Palette */
+  --n-input:         #11141A;  /* Eingabefelder liegen tiefer als ihre Karte */
+  --n-overlay:       rgba(10, 12, 16, 0.72);
+
+  /* Linien */
+  --n-border:        #2C333F;
+  --n-border-strong: #3B4453;
+  --n-divider:       #232935;
+
+  /* Text */
+  --n-text:          #E8ECF4;
+  --n-text-muted:    #A3AEC2;
+  --n-text-subtle:   #6F7C93;
+  --n-text-inverse:  #12151B;
+
+  /* Primaerfarbe: Indigo mit Violettkante. Kraeftig genug fuer Buttons,
+     ruhig genug, um in einer Tabelle nicht zu schreien. */
+  --n-primary:       #7C6BF5;
+  --n-primary-hover: #8E80F7;
+  --n-primary-press: #6A58E8;
+  --n-primary-soft:  rgba(124, 107, 245, 0.14);
+  --n-primary-ring:  #A79BFA;
+
+  /* Status */
+  --n-success:       #3FBF87;
+  --n-success-soft:  rgba(63, 191, 135, 0.14);
+  --n-warning:       #E0A33C;
+  --n-warning-soft:  rgba(224, 163, 60, 0.14);
+  --n-danger:        #E7615C;
+  --n-danger-soft:   rgba(231, 97, 92, 0.14);
+  --n-info:          #4FA6E8;
+  --n-info-soft:     rgba(79, 166, 232, 0.14);
+  --n-neutral-soft:  rgba(163, 174, 194, 0.12);
+
+  /* Belegstatus — die Statusleiste links an Zeilen und Karten ist das
+     wiedererkennbare Element der Oberflaeche. Eine Farbe pro Zustand,
+     ueberall dieselbe, immer zusaetzlich beschriftet. */
+  --n-state-draft:         #6F7C93;
+  --n-state-finalized:     #7C6BF5;
+  --n-state-sent:          #4FA6E8;
+  --n-state-partially:     #E0A33C;
+  --n-state-paid:          #3FBF87;
+  --n-state-overdue:       #E7615C;
+  --n-state-cancelled:     #4A5265;
+  --n-state-uncollectible: #B4524E;
+
+  /* Typografie
+     Interface: Inter, mitgeliefert, variabel.
+     Zahlen und Belegnummern: IBM Plex Mono — Betraege stehen in Tabellen
+     untereinander und muessen auf den Cent ausrichtbar sein. */
+  --n-font-ui:   'Inter var', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --n-font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  --n-size-xs:  0.75rem;   /* 12px  Tabellenmeta, Hilfetext */
+  --n-size-sm:  0.8125rem; /* 13px  Tabellenzellen, Labels */
+  --n-size-md:  0.875rem;  /* 14px  Grundgroesse der Anwendung */
+  --n-size-lg:  1rem;      /* 16px  Formularueberschriften */
+  --n-size-xl:  1.25rem;   /* 20px  Seitentitel */
+  --n-size-2xl: 1.625rem;  /* 26px  Dashboard-Kennzahlen */
+  --n-size-3xl: 2.25rem;   /* 36px  einzelne grosse Zahl */
+
+  --n-weight-normal: 400;
+  --n-weight-medium: 500;
+  --n-weight-semi:   600;
+
+  --n-leading-tight: 1.25;
+  --n-leading-normal: 1.5;
+  --n-tracking-caps: 0.06em;
+
+  /* Raster: 4px. Alle Abstaende sind Vielfache. */
+  --n-space-1: 4px;  --n-space-2: 8px;  --n-space-3: 12px;
+  --n-space-4: 16px; --n-space-5: 20px; --n-space-6: 24px;
+  --n-space-8: 32px; --n-space-10: 40px; --n-space-12: 48px;
+
+  --n-radius-sm: 4px;
+  --n-radius-md: 6px;
+  --n-radius-lg: 10px;
+  --n-radius-full: 999px;
+
+  /* Schatten sind auf dunklem Grund fast wirkungslos. Hoehe entsteht ueber
+     Flaechenhelligkeit plus eine helle Oberkante. */
+  --n-elev-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.4);
+  --n-elev-2: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px rgba(0,0,0,0.5);
+
+  --n-focus-ring: 0 0 0 2px var(--n-canvas), 0 0 0 4px var(--n-primary-ring);
+
+  --n-duration-fast: 90ms;
+  --n-duration-base: 160ms;
+  --n-ease: cubic-bezier(0.2, 0, 0.1, 1);
+
+  --n-sidebar-width: 248px;
+  --n-sidebar-width-collapsed: 60px;
+  --n-titlebar-height: 48px;
+  --n-row-height: 40px;
+  --n-row-height-compact: 32px;
+}
+
+/* Fokus ist immer sichtbar. Diese Regel wird nirgends ueberschrieben. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--n-focus-ring);
+  border-radius: var(--n-radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Betraege: Ziffern gleicher Breite, rechtsbuendig, Nachkommastellen
+   eine Spur ruhiger. Gilt in Tabellen ebenso wie im Summenblock. */
+.n-amount {
+  font-family: var(--n-font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.n-amount__fraction { color: var(--n-text-muted); }
+.n-amount--negative { color: var(--n-danger); }
+
+/* Statusleiste: 3px links, Farbe aus dem Belegstatus. */
+.n-state-rail {
+  box-shadow: inset 3px 0 0 0 var(--rail, var(--n-state-draft));
+}
