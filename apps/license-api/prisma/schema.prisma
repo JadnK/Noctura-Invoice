@@ -1,0 +1,150 @@
+// Lizenzserver. Enthaelt bewusst keine Geschaeftsdaten der Endkunden:
+// keine Rechnungen, keine Betraege, keine Adressen der Rechnungsempfaenger.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LicenseStatus {
+  trial
+  active
+  expired
+  blocked
+  archived
+}
+
+enum ActivationResult {
+  granted
+  denied
+  not_found
+}
+
+model LicenseOwner {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  note      String?
+  createdAt DateTime  @default(now())
+  licenses  License[]
+}
+
+model License {
+  id            String              @id @default(uuid())
+  keyHash       String              @unique
+  keyPrefix     String
+  product       String
+  plan          String
+  status        LicenseStatus       @default(active)
+  createdAt     DateTime            @default(now())
+  activatedAt   DateTime?
+  expiresAt     DateTime?
+  maxDevices    Int                 @default(1)
+  lastSeenAt    DateTime?
+  blockedReason String?
+  note          String?
+  ownerId       String
+  owner         LicenseOwner        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  features      LicenseFeature[]
+  devices       LicenseDevice[]
+  activations   LicenseActivation[]
+
+  @@index([status, expiresAt])
+  @@index([keyPrefix])
+}
+
+model LicenseFeature {
+  id          String  @id @default(uuid())
+  licenseId   String
+  featureCode String
+  license     License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, featureCode])
+}
+
+model LicenseDevice {
+  id            String    @id @default(uuid())
+  licenseId     String
+  deviceId      String
+  firstSeenAt   DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  appVersion    String
+  os            String
+  deactivatedAt DateTime?
+  license       License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, deviceId])
+  @@index([deviceId])
+}
+
+model LicenseActivation {
+  id        String           @id @default(uuid())
+  licenseId String?
+  deviceId  String
+  at        DateTime         @default(now())
+  ipHash    String
+  result    ActivationResult
+  reason    String?
+  license   License?         @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+  @@index([licenseId, at])
+}
+
+model AppRelease {
+  id          String   @id @default(uuid())
+  version     String
+  channel     String
+  notesMd     String
+  downloadUrl String
+  minVersion  String?
+  critical    Boolean  @default(false)
+  active      Boolean  @default(true)
+  publishedAt DateTime @default(now())
+
+  @@unique([version, channel])
+}
+
+model AdminSession {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  csrfToken String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  ipHash    String?
+
+  @@index([expiresAt])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  at         DateTime @default(now())
+  actor      String
+  action     String
+  objectType String
+  objectId   String?
+  diffJson   Json?
+  ipHash     String?
+
+  @@index([at])
+}
+
+model RevokedToken {
+  id        String   @id @default(uuid())
+  jti       String   @unique
+  revokedAt DateTime @default(now())
+  reason    String?
+}
+
+// Ablage fuer Serverzustand: Admin-Token-Hash, oeffentlicher Schluesselfingerabdruck,
+// Rotationszeitpunkte. Werte als JSON, damit kein Schemawechsel je Einstellung noetig ist.
+model ServerSetting {
+  key       String   @id
+  valueJson Json
+  updatedAt DateTime @updatedAt
+}
