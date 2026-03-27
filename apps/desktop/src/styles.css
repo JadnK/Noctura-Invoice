@@ -1,0 +1,11 @@
+@import '../../../packages/ui/src/tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+body {
+  font-family: var(--n-font-ui);
+  font-size: var(--n-size-md);
+  line-height: var(--n-leading-normal);
+}
