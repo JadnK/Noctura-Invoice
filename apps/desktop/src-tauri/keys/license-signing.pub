@@ -1,0 +1,5 @@
+-----BEGIN PUBLIC KEY-----
+PLATZHALTER: Dieser oeffentliche Schluessel wird beim ersten Start des
+Lizenzservers erzeugt (scripts/bootstrap.ts) und muss vor dem Release-Build
+hier eingesetzt werden. Der Build bricht ab, wenn der Platzhalter noch steht.
+-----END PUBLIC KEY-----

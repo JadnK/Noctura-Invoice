@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Noctura Invoice",
+  "version": "0.1.0",
+  "identifier": "de.jadenk.noctura.invoice",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Noctura Invoice",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1280,
+        "minHeight": 720,
+        "theme": "Dark",
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://rechnungsapp.jadenk.de; object-src 'none'; frame-ancestors 'none'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/noctura/attachments/**", "$APPDATA/noctura/branding/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "appimage", "deb"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico", "icons/icon.icns"],
+    "windows": { "webviewInstallMode": { "type": "embedBootstrapper" } }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": ["https://rechnungsapp.jadenk.de/api/v1/app/latest-version?channel={{channel}}"],
+      "dialog": false,
+      "pubkey": "PLATZHALTER_TAURI_UPDATER_PUBKEY"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "app": { "name": "Noctura Invoice" },
+  "nav": {
+    "dashboard": "Dashboard", "invoices": "Rechnungen", "quotes": "Angebote",
+    "creditNotes": "Gutschriften", "customers": "Kunden", "products": "Produkte",
+    "discounts": "Rabatte", "templates": "Vorlagen", "outbox": "E-Mail-Ausgang",
+    "reports": "Auswertungen", "settings": "Einstellungen", "license": "Lizenz", "help": "Hilfe"
+  },
+  "actions": {
+    "newInvoice": "Neue Rechnung", "save": "Speichern", "finalize": "Finalisieren",
+    "send": "Versenden", "cancel": "Abbrechen", "retry": "Erneut versuchen",
+    "recordPayment": "Zahlung erfassen", "export": "Exportieren"
+  },
+  "empty": {
+    "invoices": {
+      "title": "Noch keine Rechnung",
+      "body": "Legen Sie Ihre erste Rechnung an. Firmendaten und Nummernkreis sind bereits eingerichtet.",
+      "action": "Neue Rechnung"
+    }
+  },
+  "errors": {
+    "smtp": {
+      "title": "E-Mail konnte nicht versendet werden",
+      "cause": "Der Mailserver hat die Verbindung abgelehnt.",
+      "fix": "Prüfen Sie Host, Port und Verschlüsselung unter Einstellungen → E-Mail."
+    },
+    "licenseUnreachable": {
+      "title": "Lizenzserver nicht erreichbar",
+      "cause": "Es besteht derzeit keine Verbindung zu rechnungsapp.jadenk.de.",
+      "fix": "Die Anwendung bleibt bis {date} offline nutzbar."
+    },
+    "duplicateNumber": {
+      "title": "Rechnungsnummer bereits vergeben",
+      "cause": "Der Nummernkreis wurde zwischenzeitlich von einem anderen Vorgang genutzt.",
+      "fix": "Die nächste freie Nummer wird vorgeschlagen."
+    }
+  },
+  "tax": {
+    "smallBusinessNote": "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.",
+    "advisoryHint": "Diese Einstellung wirkt sich auf Ihre Rechnungen aus. Bitte lassen Sie die Konfiguration von Ihrer Steuerberatung prüfen. Noctura Invoice leistet keine Steuerberatung."
+  }
+}
