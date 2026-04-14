@@ -1,0 +1,38 @@
+# Produktionsergaenzung: keine offenen Ports ausser ueber den Reverse Proxy,
+# feste Ressourcengrenzen, strukturierte Logs mit Rotation.
+
+services:
+  postgres:
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1g }
+
+  redis:
+    logging: *logging
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 192m }
+
+  license-api:
+    logging: *logging
+    ports: []
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512m }
+
+  admin-web:
+    logging: *logging
+    ports: []
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 384m }
