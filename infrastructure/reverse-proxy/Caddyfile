@@ -1,0 +1,31 @@
+# Empfohlene Variante: ein Host, Pfadtrennung (siehe docs/adr/0003).
+# Caddy holt und erneuert das Zertifikat selbst.
+
+rechnungsapp.jadenk.de {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy license-api:3000
+	}
+
+	handle /health {
+		reverse_proxy license-api:3000
+	}
+
+	handle {
+		reverse_proxy admin-web:3000
+	}
+
+	log {
+		output file /var/log/caddy/noctura.log
+		format json
+	}
+}
