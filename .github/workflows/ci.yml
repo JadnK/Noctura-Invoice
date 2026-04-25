@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Tests aller Pakete
+        run: npm test
+      - name: Keine Fliesskommazahlen in der Geldarithmetik
+        run: |
+          if grep -rnE 'parseFloat|Number\(.*\)\s*\*\s*0\.' packages/invoice-core/src; then
+            echo "::error::Fliesskomma in der Geldarithmetik gefunden (ADR-0001)."; exit 1
+          fi
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: 'clippy, rustfmt' }
+      - name: Systemabhaengigkeiten fuer Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Ein Release darf nicht mit dem Platzhalter-Signaturschluessel gebaut werden.
+      - name: Platzhalter im Signaturschluessel pruefen
+        run: |
+          if grep -q "PLATZHALTER" apps/desktop/src-tauri/keys/license-signing.pub; then
+            echo "::warning::Signaturschluessel ist noch ein Platzhalter — kein Release-Build moeglich."
+          fi
+      - name: Keine .env im Repository
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::.env darf nicht eingecheckt werden."; exit 1
+          fi
