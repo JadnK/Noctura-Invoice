@@ -1,0 +1,15 @@
+# Betrieb auf dem Server ohne lokalen Build.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.ghcr.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.ghcr.yml up -d
+#
+# NOCTURA_TAG steuert die Version, Vorgabe ist "latest".
+
+services:
+  license-api:
+    build: !reset null
+    image: ghcr.io/${GITHUB_REPOSITORY:-jadenk/noctura-invoice}/license-api:${NOCTURA_TAG:-latest}
+
+  admin-web:
+    build: !reset null
+    image: ghcr.io/${GITHUB_REPOSITORY:-jadenk/noctura-invoice}/admin-web:${NOCTURA_TAG:-latest}
