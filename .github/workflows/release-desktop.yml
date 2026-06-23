@@ -1,0 +1,107 @@
+name: Release Desktop (Windows)
+
+# Baut die Windows-Anwendung. Ergebnis: Installer (.exe und .msi) plus die
+# Signaturdateien fuer den eingebauten Updater.
+#
+# Auslöser:
+#   - Tag  v*        -> Release mit Anhängen
+#   - manuell        -> nur Artefakte zum Herunterladen
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Update-Kanal'
+        type: choice
+        options: [stable, beta]
+        default: stable
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: x86_64-pc-windows-msvc }
+
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'apps/desktop/src-tauri -> target' }
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Schriften holen
+        shell: bash
+        run: ./apps/desktop/scripts/fetch-fonts.sh
+
+      - name: Tests
+        run: npm test
+
+      - name: Signaturschlüssel des Lizenzservers einsetzen
+        shell: bash
+        env:
+          LICENSE_PUBLIC_KEY: ${{ secrets.LICENSE_PUBLIC_KEY }}
+        run: |
+          if [ -z "$LICENSE_PUBLIC_KEY" ]; then
+            echo "::error::Secret LICENSE_PUBLIC_KEY fehlt. Ohne echten Schlüssel wird kein Release gebaut."
+            exit 1
+          fi
+          printf '%s' "$LICENSE_PUBLIC_KEY" > apps/desktop/src-tauri/keys/license-signing.pub
+
+      - name: Anwendung bauen
+        uses: tauri-apps/tauri-action@v0
+        env:
+          # Signaturschlüssel des Updaters. Ohne ihn akzeptiert die installierte
+          # App kein Update.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Noctura Invoice ${{ github.ref_name }}'
+          releaseBody: 'Windows-Installer unten. Prüfsummen in checksums.txt.'
+          releaseDraft: true
+          args: --target x86_64-pc-windows-msvc
+
+      - name: Prüfsummen erzeugen
+        shell: pwsh
+        run: |
+          $out = "apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          Get-ChildItem -Path $out -Recurse -Include *.exe,*.msi |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash, $_.Name } |
+            Out-File -Encoding utf8 checksums.txt
+          Get-Content checksums.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noctura-invoice-windows
+          path: |
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.sig
+            checksums.txt
+          retention-days: 30
+
+      - name: Version am Lizenzserver melden
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          ADMIN_TOKEN: ${{ secrets.NOCTURA_ADMIN_TOKEN }}
+          BASE_URL: https://rechnungsapp.jadenk.de
+        run: |
+          # Die App fragt /app/latest-version. Ohne diesen Schritt sieht niemand das Update.
+          COOKIE=$(curl -sS -i -X POST "$BASE_URL/api/v1/admin/session" \
+            -H 'Content-Type: application/json' \
+            -d "{\"token\":\"$ADMIN_TOKEN\"}" | grep -i '^set-cookie:' | cut -d' ' -f2 | tr -d ';\r')
+          curl -sS -X POST "$BASE_URL/api/v1/admin/releases" \
+            -H 'Content-Type: application/json' -H "Cookie: $COOKIE" \
+            -d "{\"version\":\"${GITHUB_REF_NAME#v}\",\"channel\":\"${{ inputs.channel || 'stable' }}\",\"notesMd\":\"Siehe CHANGELOG.md\",\"downloadUrl\":\"https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/\",\"critical\":false,\"active\":true}"
