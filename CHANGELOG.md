@@ -1,5 +1,18 @@
 # Changelog
 
+## Unveroeffentlicht
+
+- Repository auf source-available umgestellt: `LICENSE` erlaubt Lesen und
+  Studieren, nicht den Betrieb, die Weitergabe oder abgeleitete Werke.
+- `docs/veroeffentlichung.md` legt offen, welche Bestandteile zurueckgehalten
+  werden und warum — samt der Feststellung, dass das kein Kopierschutz ist.
+- Betriebsanleitung und Ausrollskript aus dem Repository genommen; sie liegen
+  unter `private/` und sind von `.gitignore` ausgeschlossen.
+- `SECURITY.md` mit privatem Meldeweg; `CONTRIBUTING.md` stellt klar, dass keine
+  externen Beitraege angenommen werden.
+- README fuer eine oeffentliche Leserschaft umgeschrieben: Einstiegspunkte zum
+  Lesen des Codes statt Anleitung zum Selbstbetrieb.
+
 ## 0.3.0 — 2026-07-26
 
 Alle Meilensteine umgesetzt. Der Rechenkern ist mit der Datenbank verdrahtet,
