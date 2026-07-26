@@ -1,8 +1,18 @@
 # Mitwirken
 
+**Externe Beiträge werden nicht angenommen.** Dieses Repository ist einsehbar,
+aber nicht offen: es gibt keine Pull-Request-Annahme, keinen Support und keine
+Zusagen zu Fehlerbehebung oder Weiterentwicklung. Siehe `LICENSE`.
+
+Fehlermeldungen und Sicherheitshinweise sind trotzdem willkommen — der Weg
+dafür steht in `SECURITY.md`.
+
+Der folgende Teil beschreibt die interne Arbeitsweise. Er steht hier, weil er
+zum Verständnis der Historie gehört.
+
 ## Branch-Modell
 
-    main            nur getaggte, freigegebene Stände
+    main            nur freigegebene Stände
     develop         Integrationsbranch, immer grün
     feature/<topic> Arbeit an einem abgegrenzten Thema
     release/<ver>   Stabilisierung, nur noch Fixes
@@ -19,6 +29,6 @@ Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`,
 ## Definition of Done
 
 - Typecheck, Lint und Tests laufen durch.
-- Geschaeftslogik hat Unit-Tests.
-- Sicherheitsrelevante Aenderungen sind in `docs/security.md` oder einem ADR beschrieben.
+- Geschäftslogik hat Unit-Tests.
+- Sicherheitsrelevante Änderungen sind in `docs/security.md` oder einem ADR beschrieben.
 - Keine Secrets im Repository, `.env.example` ist aktuell.
