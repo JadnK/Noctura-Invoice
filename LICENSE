@@ -1,0 +1,50 @@
+Noctura Invoice — Quelltext einsehbar, Nutzung vorbehalten
+Copyright (c) 2026 Jaden K. Alle Rechte vorbehalten.
+
+Dies ist KEINE Open-Source-Lizenz. Der Quelltext ist öffentlich einsehbar,
+damit Interessierte, Kunden und mögliche Arbeitgeber die Arbeitsweise und die
+Umsetzung nachvollziehen können. Weitergehende Rechte werden nicht eingeräumt.
+
+1. Erlaubt
+
+   a) Den Quelltext lesen, studieren und zitieren, etwa in Besprechungen,
+      Rezensionen, Lehrmaterial oder Sicherheitsanalysen.
+   b) Den Quelltext ganz oder in Teilen zu rein privaten Studienzwecken lokal
+      erstellen und ausführen, ohne ihn produktiv einzusetzen.
+
+2. Nicht erlaubt (ohne vorherige schriftliche Erlaubnis des Rechteinhabers)
+
+   a) Betrieb der Software oder von Teilen davon für den eigenen Geschäfts-
+      betrieb, für Dritte oder als Dienst.
+   b) Betrieb des Lizenz- oder Verwaltungsservers, gleich ob öffentlich oder
+      intern.
+   c) Weitergabe, Veröffentlichung, Unterlizenzierung, Verkauf oder Vermietung
+      des Quelltextes oder daraus erzeugter Programme.
+   d) Erstellen abgeleiteter Werke zur Verbreitung oder zum Betrieb.
+   e) Umgehen, Entfernen oder Nachbilden der Lizenzprüfung.
+   f) Nutzung des Namens "Noctura Invoice" oder zugehöriger Kennzeichen für
+      eigene Produkte.
+
+3. Beiträge
+
+   Externe Beiträge werden nicht angenommen. Eingereichte Änderungen gehen,
+   sofern sie ausnahmsweise übernommen werden, vollständig auf den
+   Rechteinhaber über.
+
+4. Keine Gewährleistung
+
+   Die Software wird ohne jede Gewährleistung bereitgestellt. Der Rechteinhaber
+   haftet nicht für Schäden, die aus der Nutzung entstehen.
+
+5. Trennbarkeit
+
+   Ist eine Bestimmung unwirksam, bleiben die übrigen wirksam.
+
+Anfragen zu Nutzung, Lizenzierung oder Zusammenarbeit: siehe README.
+
+---
+
+English summary (the German text above is binding): This is source-available,
+not open source. You may read and study the code. You may not run it in
+production, host the license server, redistribute it, create derivative works
+for distribution, or circumvent the licensing. All rights reserved.
