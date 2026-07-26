@@ -16,3 +16,6 @@ secrets/
 
 # Schriften werden per scripts/fetch-fonts.sh geholt
 apps/desktop/src-tauri/fonts/*.ttf
+
+# Betriebsunterlagen und Ausrollskript gehoeren nicht ins oeffentliche Repository
+private/
