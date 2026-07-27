@@ -1,14 +1,21 @@
 # Mehrstufiger Build. Das Laufzeit-Image enthaelt keine Build-Werkzeuge,
 # laeuft als nicht privilegierter Nutzer und schreibt nur in /data.
+#
+# npm install statt npm ci: der Docker-Build-Kontext ist nur dieser Ordner,
+# isoliert vom Rest des Monorepos. Es gibt kein eingechecktes
+# package-lock.json (weder hier noch an der Wurzel) - npm ci verlangt
+# zwingend eines und bricht sonst sofort ab. license-api haengt von keinem
+# internen @noctura/*-Workspace-Paket ab, deshalb reicht die isolierte
+# package.json hier vollstaendig aus.
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm install --omit=dev --ignore-scripts
 
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+RUN npm install --ignore-scripts
 COPY . .
 RUN npx prisma generate && npm run build
 
