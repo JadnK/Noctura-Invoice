@@ -6,6 +6,14 @@ COPY package.json package-lock.json* ./
 # Begruendung).
 RUN npm install --ignore-scripts
 COPY . .
+
+# next.config.js wertet API_INTERNAL_URL in rewrites() beim Bauen aus, nicht
+# erst zur Laufzeit - Next.js backt Rewrites in "output: standalone" in den
+# Build ein. docker-compose.yml setzt die Variable nur fuer den laufenden
+# Container, der isolierte Build-Schritt hier sieht sie nicht und wuerde
+# ohne diese Zeile "undefined/api/:path*" als Ziel erzeugen. Fester Wert,
+# kein Geheimnis: der interne Docker-Netzwerkname aendert sich nie.
+ENV API_INTERNAL_URL=http://license-api:3000
 RUN npm run build
 
 FROM node:22-alpine AS runtime
