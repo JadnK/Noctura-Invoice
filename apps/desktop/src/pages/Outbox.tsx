@@ -1,66 +1,49 @@
-import { FAILURE_TEXT } from '@noctura/mail';
-import type { FailureKind } from '@noctura/mail';
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import type { ApiError, OutboxEntry } from '../lib/api';
+import { formatDateLong } from '../lib/format';
+import { EmptyState, Loading, PageError, STATUS_LABEL, buttonPrimary, toApiError } from './pageUtils';
 
-export interface OutboxEntry {
-  id: string;
-  subject: string;
-  to: string;
-  status: 'queued' | 'sending' | 'sent' | 'failed' | 'cancelled';
-  attempts: number;
-  nextAttemptAt: string | null;
-  errorCode: FailureKind | null;
-}
+export function Outbox() {
+  const [entries, setEntries] = useState<OutboxEntry[] | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-const STATUS_LABEL: Record<OutboxEntry['status'], string> = {
-  queued: 'Wartet', sending: 'Wird gesendet', sent: 'Versendet',
-  failed: 'Fehlgeschlagen', cancelled: 'Abgebrochen',
-};
+  async function load() {
+    setError(null);
+    try { setEntries(await api.outbox()); }
+    catch (err) { setError(toApiError(err)); }
+  }
+  useEffect(() => { void load(); }, []);
 
-const STATUS_COLOR: Record<OutboxEntry['status'], string> = {
-  queued: 'var(--n-state-draft)', sending: 'var(--n-state-sent)', sent: 'var(--n-state-paid)',
-  failed: 'var(--n-state-overdue)', cancelled: 'var(--n-state-cancelled)',
-};
+  async function process() {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const result = await api.processOutbox();
+      setNotice(`${result.sent} E-Mail(s) versendet, ${result.failed} fehlgeschlagen.`);
+      await load();
+    } catch (err) { setError(toApiError(err)); }
+    finally { setBusy(false); }
+  }
+  async function retry(id: string) {
+    setBusy(true); setError(null);
+    try { await api.retryOutbox(id); await process(); }
+    catch (err) { setError(toApiError(err)); setBusy(false); }
+  }
+  async function cancel(id: string) {
+    setBusy(true); setError(null);
+    try { await api.cancelOutbox(id); await load(); }
+    catch (err) { setError(toApiError(err)); }
+    finally { setBusy(false); }
+  }
 
-/** E-Mail-Ausgang: was wartet, was fehlgeschlagen ist und warum. */
-export function Outbox({ entries }: { entries: readonly OutboxEntry[] }) {
-  return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold tracking-tight">E-Mail-Ausgang</h1>
-
-      {entries.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-elev1">
-          <p className="font-medium">Nichts im Ausgang</p>
-          <p className="mt-1 text-sm text-muted">Versendete Rechnungen und Mahnungen erscheinen hier mit ihrem Zustand.</p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {entries.map((entry) => (
-            <li key={entry.id} className="n-state-rail rounded-lg border border-border bg-surface p-3"
-                style={{ ['--rail' as string]: STATUS_COLOR[entry.status] }}>
-              <div className="flex items-baseline justify-between gap-4">
-                <p className="font-medium">{entry.subject}</p>
-                <span className="text-xs text-subtle">{STATUS_LABEL[entry.status]}</span>
-              </div>
-              <p className="text-sm text-muted">{entry.to}</p>
-
-              {entry.errorCode && (
-                <div className="mt-2 rounded bg-canvas p-2 text-xs">
-                  <p style={{ color: 'var(--n-danger)' }}>{FAILURE_TEXT[entry.errorCode].cause}</p>
-                  <p className="mt-1 text-muted">{FAILURE_TEXT[entry.errorCode].fix}</p>
-                </div>
-              )}
-
-              <div className="mt-2 flex items-center gap-3 text-xs text-subtle">
-                <span>{entry.attempts} Versuch{entry.attempts === 1 ? '' : 'e'}</span>
-                {entry.nextAttemptAt && <span>nächster Versuch {new Date(entry.nextAttemptAt).toLocaleTimeString('de-DE')}</span>}
-                {entry.status === 'failed' && (
-                  <button type="button" className="text-text underline">Erneut senden</button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-baseline justify-between gap-3"><div><h1 className="text-xl font-semibold tracking-tight">E-Mail-Ausgang</h1><p className="mt-1 text-sm text-muted">Persistente SMTP-Warteschlange mit Fehlerdetails und kontrollierten Wiederholungen.</p></div><button type="button" disabled={busy} onClick={() => void process()} className={buttonPrimary}>Fällige E-Mails senden</button></div>
+    {error && <PageError error={error} retry={() => void load()} />}
+    {notice && <div className="rounded border border-border bg-surface px-3 py-2 text-sm">{notice}</div>}
+    {entries === null && !error && <Loading />}
+    {entries !== null && entries.length === 0 && !error && <EmptyState title="E-Mail-Ausgang ist leer">Versandaufträge aus Rechnungen und Angeboten erscheinen hier.</EmptyState>}
+    {entries !== null && entries.length > 0 && <div className="space-y-3">{entries.map((entry) => <article key={entry.id} className="rounded-lg border border-border bg-surface p-4 shadow-elev1"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-medium">{entry.subject}</h2><p className="mt-1 text-sm text-muted">An: {entry.toAddr}</p><p className="mt-1 text-xs text-subtle">Erstellt: {formatDateLong(entry.createdAt)} · Status: {STATUS_LABEL[entry.status] ?? entry.status} · Versuche: {entry.attempts}</p></div><div className="flex gap-3 text-sm">{['failed', 'cancelled'].includes(entry.status) && <button type="button" disabled={busy} onClick={() => void retry(entry.id)} className="text-primary">Erneut senden</button>}{['queued', 'failed'].includes(entry.status) && <button type="button" disabled={busy} onClick={() => void cancel(entry.id)} className="text-danger">Abbrechen</button>}</div></div>{entry.lastErrorDetail && <details className="mt-3 rounded border border-divider bg-canvas p-2 text-xs"><summary className="cursor-pointer font-medium">Fehlerdetails ({entry.lastErrorCode ?? 'unbekannt'})</summary><pre className="mt-2 whitespace-pre-wrap break-words text-subtle">{entry.lastErrorDetail}</pre></details>}{entry.sentAt && <p className="mt-2 text-xs text-subtle">Versendet: {formatDateLong(entry.sentAt)}</p>}</article>)}</div>}
+  </div>;
 }

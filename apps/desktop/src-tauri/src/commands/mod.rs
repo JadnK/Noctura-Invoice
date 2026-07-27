@@ -1,13 +1,18 @@
-//! Tauri-Commands. Jeder Command validiert seine Eingaben erneut; auf die
-//! Pruefung im Renderer verlaesst sich hier nichts.
-
 pub mod backup;
 pub mod company;
 pub mod customers;
 pub mod dashboard;
 pub mod db;
+pub mod discounts;
+pub mod documents;
 pub mod email_settings;
-pub mod products;
-pub mod templates;
 pub mod invoice;
 pub mod license;
+pub mod outbox;
+pub mod pdf_export;
+pub mod products;
+pub mod reports;
+pub mod search;
+pub mod templates;
+pub mod tax;
+pub mod workspace_settings;

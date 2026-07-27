@@ -148,7 +148,7 @@ async fn missing_fields(
     let mut missing = Vec::new();
 
     let row = sqlx::query(
-        "SELECT issue_date, due_date,
+        "SELECT issue_date, service_date, due_date, customer_id,
                 (SELECT COUNT(*) FROM invoice_item WHERE invoice_id = invoice.id AND kind = 'item') AS items
          FROM invoice WHERE id = ?1",
     )
@@ -156,36 +156,99 @@ async fn missing_fields(
     .fetch_one(&mut **tx)
     .await?;
 
-    if row.get::<Option<String>, _>("issue_date").is_none() {
+    let empty = |value: Option<String>| value.map(|value| value.trim().is_empty()).unwrap_or(true);
+    if empty(row.get::<Option<String>, _>("issue_date")) {
         missing.push("Rechnungsdatum".to_string());
     }
-    if row.get::<Option<String>, _>("due_date").is_none() {
+    if empty(row.get::<Option<String>, _>("service_date")) {
+        missing.push("Leistungsdatum bzw. Leistungszeitraum".to_string());
+    }
+    if empty(row.get::<Option<String>, _>("due_date")) {
         missing.push("Fälligkeitsdatum".to_string());
     }
     if row.get::<i64, _>("items") == 0 {
         missing.push("mindestens eine Position".to_string());
     }
 
-    let company: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM company_profile")
-        .fetch_one(&mut **tx)
-        .await?;
-    if company == 0 {
-        missing.push("Firmenprofil".to_string());
+    let company = sqlx::query(
+        "SELECT p.legal_name, p.vat_id, p.tax_number,
+                a.street, a.house_no, a.postal_code, a.city
+         FROM company_profile p
+         LEFT JOIN company_address a ON a.company_id=p.id AND a.kind='main'
+         ORDER BY p.created_at LIMIT 1",
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    match company {
+        None => missing.push("Firmenprofil".to_string()),
+        Some(company) => {
+            if company.get::<String, _>("legal_name").trim().is_empty() {
+                missing.push("Unternehmensname".to_string());
+            }
+            for (column, label) in [
+                ("street", "Firmenstraße"),
+                ("postal_code", "Firmenpostleitzahl"), ("city", "Firmenort"),
+            ] {
+                if empty(company.get::<Option<String>, _>(column)) { missing.push(label.to_string()); }
+            }
+            let vat_id = company.get::<Option<String>, _>("vat_id").unwrap_or_default();
+            let tax_number = company.get::<Option<String>, _>("tax_number").unwrap_or_default();
+            if vat_id.trim().is_empty() && tax_number.trim().is_empty() {
+                missing.push("Steuernummer oder USt-IdNr.".to_string());
+            }
+        }
     }
+
+    let customer_id: String = row.get("customer_id");
+    let customer = sqlx::query(
+        "SELECT c.company, c.first_name, c.last_name,
+                a.street, a.house_no, a.postal_code, a.city
+         FROM customer c
+         LEFT JOIN customer_address a ON a.customer_id=c.id AND a.kind='billing'
+         WHERE c.id=?1",
+    )
+    .bind(customer_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let customer_name = customer.get::<Option<String>, _>("company").unwrap_or_default();
+    let person_name = format!(
+        "{} {}",
+        customer.get::<Option<String>, _>("first_name").unwrap_or_default(),
+        customer.get::<Option<String>, _>("last_name").unwrap_or_default(),
+    );
+    if customer_name.trim().is_empty() && person_name.trim().is_empty() {
+        missing.push("Name des Rechnungsempfängers".to_string());
+    }
+    for (column, label) in [
+        ("street", "Empfängerstraße"),
+        ("postal_code", "Empfängerpostleitzahl"), ("city", "Empfängerort"),
+    ] {
+        if empty(customer.get::<Option<String>, _>(column)) { missing.push(label.to_string()); }
+    }
+
     Ok(missing)
 }
 
 async fn snapshot_company(executor: &mut sqlx::SqliteConnection) -> Result<String, AppError> {
     let row = sqlx::query(
-        "SELECT p.legal_name, p.vat_id, p.tax_number, a.street, a.house_no, a.postal_code, a.city, a.country
+        "SELECT p.legal_name, p.email, p.phone, p.website, p.vat_id, p.tax_number,
+                a.street, a.house_no, a.postal_code, a.city, a.country,
+                b.iban, b.bic
          FROM company_profile p LEFT JOIN company_address a
-           ON a.company_id = p.id AND a.kind = 'main' LIMIT 1",
+           ON a.company_id = p.id AND a.kind = 'main'
+         LEFT JOIN bank_account b ON b.company_id = p.id AND b.is_default = 1
+         LIMIT 1",
     )
     .fetch_one(&mut *executor)
     .await?;
 
     Ok(serde_json::json!({
         "legalName": row.get::<String, _>("legal_name"),
+        "email": row.get::<Option<String>, _>("email"),
+        "phone": row.get::<Option<String>, _>("phone"),
+        "website": row.get::<Option<String>, _>("website"),
+        "iban": row.get::<Option<String>, _>("iban"),
+        "bic": row.get::<Option<String>, _>("bic"),
         "vatId": row.get::<Option<String>, _>("vat_id"),
         "taxNumber": row.get::<Option<String>, _>("tax_number"),
         "street": row.get::<Option<String>, _>("street"),
@@ -265,46 +328,101 @@ pub async fn cancel(
     user_id: &str,
     device_id: &str,
 ) -> Result<String, AppError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::MissingFields("Stornogrund".into()));
+    }
+
     let mut tx = pool.begin().await?;
     let status: String = sqlx::query_scalar("SELECT status FROM invoice WHERE id = ?1")
         .bind(invoice_id)
         .fetch_one(&mut *tx)
         .await?;
-    if status == "draft" {
-        return Err(AppError::MissingFields("Entwürfe werden gelöscht, nicht storniert".into()));
+    match status.as_str() {
+        "draft" => {
+            return Err(AppError::MissingFields(
+                "Entwürfe werden gelöscht, nicht storniert".into(),
+            ));
+        }
+        "cancelled" => {
+            return Err(AppError::MissingFields("Rechnung ist bereits storniert".into()));
+        }
+        "archived" => {
+            return Err(AppError::MissingFields(
+                "Archivierte Rechnungen können nicht storniert werden".into(),
+            ));
+        }
+        _ => {}
     }
 
-    let customer_id: String = sqlx::query_scalar("SELECT customer_id FROM invoice WHERE id = ?1")
-        .bind(invoice_id)
-        .fetch_one(&mut *tx)
-        .await?;
     let number = super::numbering::next_number(&mut tx, "cancellation", None).await?;
     let id = uuid::Uuid::now_v7().to_string();
     let now = Utc::now().to_rfc3339();
+    let issue_date = &now[..10];
+
+    let inserted = sqlx::query(
+        "INSERT INTO credit_note
+           (id, number, kind, status, origin_invoice_id, customer_id, issue_date, reason,
+            currency, tax_scheme, template_id, net_total_cents, tax_total_cents, gross_total_cents,
+            company_snapshot_json, customer_snapshot_json, finalized_at, created_at, updated_at)
+         SELECT ?1, ?2, 'cancellation', 'finalized', i.id, i.customer_id, ?3, ?4,
+                i.currency, i.tax_scheme, i.template_id, i.net_total_cents, i.tax_total_cents,
+                i.gross_total_cents, i.company_snapshot_json, i.customer_snapshot_json,
+                ?5, ?5, ?5
+         FROM invoice i WHERE i.id = ?6",
+    )
+    .bind(&id)
+    .bind(&number)
+    .bind(issue_date)
+    .bind(reason)
+    .bind(&now)
+    .bind(invoice_id)
+    .execute(&mut *tx)
+    .await?;
+    if inserted.rows_affected() != 1 {
+        return Err(AppError::MissingFields("vorhandene Rechnung".into()));
+    }
 
     sqlx::query(
-        "INSERT INTO credit_note (id, number, kind, status, origin_invoice_id, customer_id,
-                                  issue_date, reason, created_at, updated_at)
-         VALUES (?1, ?2, 'cancellation', 'finalized', ?3, ?4, ?5, ?6, ?7, ?7)",
+        "INSERT INTO credit_note_item
+           (id, credit_note_id, position, origin_item_id, description, quantity_milli,
+            unit_id, unit_price_cents, tax_rate_bp, line_net_cents, line_tax_cents)
+         SELECT lower(hex(randomblob(16))), ?1, position, id, description, quantity_milli,
+                unit_id, unit_price_cents, tax_rate_bp, line_net_cents, line_tax_cents
+         FROM invoice_item
+         WHERE invoice_id = ?2 AND kind = 'item' AND hidden = 0
+         ORDER BY position",
     )
-    .bind(&id).bind(&number).bind(invoice_id).bind(&customer_id)
-    .bind(&now[..10]).bind(reason).bind(&now)
+    .bind(&id)
+    .bind(invoice_id)
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query("UPDATE invoice SET status = 'cancelled', cancelled_by_id = ?2, updated_at = ?3 WHERE id = ?1")
-        .bind(invoice_id).bind(&id).bind(&now)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE invoice
+         SET status = 'cancelled', cancelled_by_id = ?2, updated_at = ?3
+         WHERE id = ?1",
+    )
+    .bind(invoice_id)
+    .bind(&id)
+    .bind(&now)
+    .execute(&mut *tx)
+    .await?;
 
     append_audit(
         &mut tx,
         AuditEntry {
-            at: now, action: "cancel".into(), object_type: "invoice".into(),
+            at: now,
+            action: "cancel".into(),
+            object_type: "invoice".into(),
             object_id: invoice_id.into(),
             old_json: Some(format!("{{\"status\":\"{status}\"}}")),
-            new_json: Some(format!("{{\"status\":\"cancelled\",\"cancellation\":\"{number}\"}}")),
-            user_id: user_id.into(), device_id: device_id.into(), source: "desktop".into(),
+            new_json: Some(format!(
+                "{{\"status\":\"cancelled\",\"cancellation\":\"{number}\"}}"
+            )),
+            user_id: user_id.into(),
+            device_id: device_id.into(),
+            source: "desktop".into(),
         },
     )
     .await?;

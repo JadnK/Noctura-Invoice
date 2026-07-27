@@ -5,7 +5,6 @@ export interface NavItem {
   readonly shortcut?: string;
   readonly group: 'belege' | 'stammdaten' | 'system';
 }
-
 export const NAVIGATION: readonly NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', group: 'belege' },
   { id: 'invoices', label: 'Rechnungen', shortcut: 'Strg + N', group: 'belege' },
@@ -14,16 +13,13 @@ export const NAVIGATION: readonly NavItem[] = [
   { id: 'customers', label: 'Kunden', shortcut: 'Strg + Umschalt + N', group: 'stammdaten' },
   { id: 'products', label: 'Produkte', group: 'stammdaten' },
   { id: 'discounts', label: 'Rabatte', group: 'stammdaten' },
-  { id: 'templates', label: 'Vorlagen', group: 'stammdaten' },
   { id: 'outbox', label: 'E-Mail-Ausgang', group: 'system' },
   { id: 'reports', label: 'Auswertungen', group: 'system' },
+  { id: 'tax', label: 'Steuerbereich', group: 'system' },
   { id: 'settings', label: 'Einstellungen', shortcut: 'Strg + ,', group: 'system' },
   { id: 'license', label: 'Lizenz', group: 'system' },
   { id: 'help', label: 'Hilfe', group: 'system' },
 ];
-
 export const GROUP_LABELS: Record<NavItem['group'], string> = {
-  belege: 'Belege',
-  stammdaten: 'Stammdaten',
-  system: 'Verwaltung',
+  belege: 'Belege', stammdaten: 'Stammdaten', system: 'Verwaltung',
 };

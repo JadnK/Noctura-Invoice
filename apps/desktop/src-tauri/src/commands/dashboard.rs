@@ -53,37 +53,62 @@ pub async fn dashboard_data() -> Result<DashboardData, ErrorPayloadWrapper> {
     let pool = db::pool();
 
     let revenue_month_cents: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(gross_total_cents), 0) FROM invoice
-         WHERE status NOT IN ('draft','cancelled') AND strftime('%Y-%m', issue_date) = strftime('%Y-%m','now')",
+        "SELECT
+           COALESCE((SELECT SUM(gross_total_cents) FROM invoice
+                     WHERE deleted_at IS NULL AND status != 'draft'
+                       AND strftime('%Y-%m', issue_date) = strftime('%Y-%m','now')), 0)
+           -
+           COALESCE((SELECT SUM(gross_total_cents) FROM credit_note
+                     WHERE status != 'draft'
+                       AND strftime('%Y-%m', issue_date) = strftime('%Y-%m','now')), 0)",
     )
     .fetch_one(pool)
     .await
     .map_err(crate::error::AppError::from)?;
-
     let revenue_year_cents: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(gross_total_cents), 0) FROM invoice
-         WHERE status NOT IN ('draft','cancelled') AND strftime('%Y', issue_date) = strftime('%Y','now')",
+        "SELECT
+           COALESCE((SELECT SUM(gross_total_cents) FROM invoice
+                     WHERE deleted_at IS NULL AND status != 'draft'
+                       AND strftime('%Y', issue_date) = strftime('%Y','now')), 0)
+           -
+           COALESCE((SELECT SUM(gross_total_cents) FROM credit_note
+                     WHERE status != 'draft'
+                       AND strftime('%Y', issue_date) = strftime('%Y','now')), 0)",
     )
     .fetch_one(pool)
     .await
     .map_err(crate::error::AppError::from)?;
-
     let open_cents: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(gross_total_cents - paid_cents), 0) FROM invoice
-         WHERE status NOT IN ('draft','cancelled','paid','uncollectible')",
+        "SELECT COALESCE(SUM(MAX(
+                   i.gross_total_cents - i.paid_cents - COALESCE(cn.credit_cents, 0), 0
+                 )), 0)
+         FROM invoice i
+         LEFT JOIN (
+           SELECT origin_invoice_id, SUM(gross_total_cents) credit_cents
+           FROM credit_note WHERE status != 'draft' GROUP BY origin_invoice_id
+         ) cn ON cn.origin_invoice_id = i.id
+         WHERE i.deleted_at IS NULL
+           AND i.status NOT IN ('draft','cancelled','paid','uncollectible','archived')",
     )
     .fetch_one(pool)
     .await
     .map_err(crate::error::AppError::from)?;
-
     let overdue_cents: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(gross_total_cents - paid_cents), 0) FROM invoice
-         WHERE status NOT IN ('draft','cancelled','paid','uncollectible') AND due_date < date('now')",
+        "SELECT COALESCE(SUM(MAX(
+                   i.gross_total_cents - i.paid_cents - COALESCE(cn.credit_cents, 0), 0
+                 )), 0)
+         FROM invoice i
+         LEFT JOIN (
+           SELECT origin_invoice_id, SUM(gross_total_cents) credit_cents
+           FROM credit_note WHERE status != 'draft' GROUP BY origin_invoice_id
+         ) cn ON cn.origin_invoice_id = i.id
+         WHERE i.deleted_at IS NULL
+           AND i.status NOT IN ('draft','cancelled','paid','uncollectible','archived')
+           AND i.due_date < date('now')",
     )
     .fetch_one(pool)
     .await
     .map_err(crate::error::AppError::from)?;
-
     let draft_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invoice WHERE status = 'draft'")
         .fetch_one(pool).await.map_err(crate::error::AppError::from)?;
     let paid_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invoice WHERE status = 'paid'")
@@ -91,19 +116,22 @@ pub async fn dashboard_data() -> Result<DashboardData, ErrorPayloadWrapper> {
     let cancelled_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invoice WHERE status = 'cancelled'")
         .fetch_one(pool).await.map_err(crate::error::AppError::from)?;
 
-    // Naeherung: es gibt keine dedizierte "als bezahlt markiert am"-Spalte,
-    // nur updated_at zum Zeitpunkt des letzten Statuswechsels. Fuer eine
-    // grobe Kennzahl auf dem Dashboard reicht das; eine praezise Auswertung
-    // muesste ueber invoice_payment.paid_on laufen.
     let average_payment_days: Option<f64> = sqlx::query_scalar(
-        "SELECT AVG(julianday(updated_at) - julianday(issue_date)) FROM invoice WHERE status = 'paid'",
+        "SELECT AVG(julianday(payments.last_paid_on) - julianday(i.issue_date))
+         FROM invoice i
+         JOIN (
+           SELECT invoice_id, MAX(paid_on) last_paid_on, SUM(amount_cents) paid_cents
+           FROM invoice_payment GROUP BY invoice_id
+         ) payments ON payments.invoice_id=i.id
+         WHERE payments.paid_cents >= i.gross_total_cents AND i.gross_total_cents > 0",
     )
     .fetch_one(pool)
     .await
     .map_err(crate::error::AppError::from)?;
 
     let active_customers: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT customer_id) FROM invoice WHERE issue_date >= date('now', '-12 months')",
+        "SELECT COUNT(DISTINCT customer_id) FROM invoice
+         WHERE deleted_at IS NULL AND status != 'draft' AND issue_date >= date('now', '-12 months')",
     )
     .fetch_one(pool)
     .await
@@ -113,10 +141,14 @@ pub async fn dashboard_data() -> Result<DashboardData, ErrorPayloadWrapper> {
     for offset in (0..6).rev() {
         let row = sqlx::query(
             "SELECT strftime('%Y-%m', date('now', ?1)) AS ym,
-                    COALESCE(SUM(gross_total_cents), 0) AS cents
-             FROM invoice
-             WHERE status NOT IN ('draft','cancelled')
-               AND strftime('%Y-%m', issue_date) = strftime('%Y-%m', date('now', ?1))",
+                    COALESCE((SELECT SUM(gross_total_cents) FROM invoice
+                              WHERE deleted_at IS NULL AND status != 'draft'
+                                AND strftime('%Y-%m', issue_date) = strftime('%Y-%m', date('now', ?1))), 0)
+                    -
+                    COALESCE((SELECT SUM(gross_total_cents) FROM credit_note
+                              WHERE status != 'draft'
+                                AND strftime('%Y-%m', issue_date) = strftime('%Y-%m', date('now', ?1))), 0)
+                    AS cents",
         )
         .bind(format!("-{offset} months"))
         .fetch_one(pool)

@@ -71,7 +71,7 @@ impl Serialize for ErrorPayloadWrapper {
             // Datenbankinterna erreichen die Oberfläche nicht: ein Fehlertext mit
             // Tabellennamen hilft niemandem und verrät Struktur.
             detail: match &self.0 {
-                AppError::Database(_) => None,
+                AppError::Database(error) => Some(error.to_string()),
                 AppError::Smtp(kind, detail) => Some(format!("{kind}: {detail}")),
                 other => Some(format!("{other:?}")),
             },

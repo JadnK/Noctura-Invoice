@@ -1,74 +1,71 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { BusinessSettingsForm } from '../components/BusinessSettingsForm';
+import { ApiError, api } from '../lib/api';
+import type { BusinessSettings } from '../lib/api';
+import { Loading, PageError, buttonPrimary, buttonSecondary, toApiError } from './pageUtils';
 
-/**
- * Einrichtungsassistent. Zehn Schritte, jederzeit ueberspringbar und spaeter
- * unter Einstellungen erneut aufrufbar. Der Fortschritt wird nach jedem Schritt
- * gespeichert, damit ein Abbruch nichts kostet.
- */
 const STEPS = [
-  { id: 'welcome', title: 'Willkommen', hint: 'Kurzer Überblick über die Einrichtung.' },
-  { id: 'company-type', title: 'Unternehmensart', hint: 'Einzelunternehmen, GmbH, Verein oder Freiberuflich.' },
-  { id: 'company', title: 'Firmendaten', hint: 'Name, Anschrift, Kontakt und Registereinträge.' },
-  { id: 'tax', title: 'Steuerliche Einstellungen', hint: 'Regelbesteuerung oder Kleinunternehmerregelung.' },
-  { id: 'bank', title: 'Bankverbindung', hint: 'IBAN und BIC für den Zahlungsteil der Rechnung.' },
-  { id: 'numbering', title: 'Rechnungsnummern', hint: 'Muster, Startwert und Zurücksetzen.' },
-  { id: 'branding', title: 'Logo und Branding', hint: 'Logo, Akzentfarbe, Fußzeile.' },
-  { id: 'email', title: 'E-Mail-Versand', hint: 'SMTP-Zugang einrichten und testen.' },
-  { id: 'license', title: 'Lizenz aktivieren', hint: 'Lizenzschlüssel eingeben.' },
-  { id: 'first-invoice', title: 'Erste Rechnung', hint: 'Direkt loslegen.' },
-] as const;
+  { id: 'company', title: 'Unternehmen', sections: ['company'] as const },
+  { id: 'tax', title: 'Steuer', sections: ['tax'] as const },
+  { id: 'bank', title: 'Bank', sections: ['bank'] as const },
+  { id: 'numbering', title: 'Nummernkreise', sections: ['numbering'] as const },
+];
 
-export function OnboardingWizard({ onFinish, onSkip }: { onFinish: () => void; onSkip: () => void }) {
-  const [index, setIndex] = useState(0);
-  const step = STEPS[index];
-  const last = index === STEPS.length - 1;
+export function OnboardingWizard({ onFinish, onSkip }: { onFinish: () => void; onSkip?: () => void }) {
+  const [step, setStep] = useState(0);
+  const [settings, setSettings] = useState<BusinessSettings | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col justify-center p-8">
-      <ol className="mb-6 flex gap-1" aria-label="Fortschritt">
-        {STEPS.map((s, i) => (
-          <li
-            key={s.id}
-            aria-current={i === index ? 'step' : undefined}
-            className="h-1 flex-1 rounded-full"
-            style={{ background: i <= index ? 'var(--n-primary)' : 'var(--n-border)' }}
-          />
-        ))}
-      </ol>
+  useEffect(() => {
+    api.businessSettings().then(setSettings).catch((err) => setError(toApiError(err)));
+  }, []);
 
-      <p className="text-xs uppercase text-subtle" style={{ letterSpacing: 'var(--n-tracking-caps)' }}>
-        Schritt {index + 1} von {STEPS.length}
-      </p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">{step.title}</h1>
-      <p className="mt-2 text-muted">{step.hint}</p>
+  function validateCurrent(): string | null {
+    if (!settings) return 'Einstellungen nicht geladen.';
+    if (step === 0 && !settings.legalName.trim()) return 'Bitte geben Sie den Unternehmensnamen ein.';
+    if (step === 1 && settings.taxScheme === 'standard' && !settings.taxNumber.trim() && !settings.vatId.trim()) {
+      return 'Bitte tragen Sie eine Steuernummer oder USt-IdNr. ein.';
+    }
+    if (step === 2 && settings.iban && settings.iban.length < 15) return 'Die IBAN ist zu kurz.';
+    if (step === 3 && [settings.invoicePattern, settings.quotePattern, settings.creditNotePattern].some((pattern) => !pattern.includes('{COUNTER}'))) {
+      return 'Jeder Nummernkreis muss den Platzhalter {COUNTER} enthalten.';
+    }
+    return null;
+  }
 
-      <div className="mt-6 min-h-48 rounded-lg border border-border bg-surface p-5 shadow-elev1">
-        {/* Formular je Schritt: React Hook Form + Zod, Felder aus docs/data-model.md */}
-        <p className="text-sm text-subtle">Formular für „{step.title}“.</p>
-      </div>
+  async function next() {
+    const problem = validateCurrent();
+    if (problem) {
+      setError(new ApiError('E_MISSING_FIELDS', problem));
+      return;
+    }
+    setError(null);
+    if (step < STEPS.length - 1) {
+      setStep((value) => value + 1);
+      return;
+    }
+    if (!settings) return;
+    setBusy(true);
+    try {
+      await api.completeOnboarding(settings);
+      onFinish();
+    } catch (err) {
+      setError(toApiError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      <div className="mt-6 flex items-center justify-between">
-        <button type="button" onClick={onSkip} className="text-sm text-subtle hover:text-text">
-          Einrichtung später fortsetzen
-        </button>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={index === 0}
-            onClick={() => setIndex((i) => i - 1)}
-            className="rounded border border-border px-3 py-1.5 text-sm disabled:opacity-40"
-          >
-            Zurück
-          </button>
-          <button
-            type="button"
-            onClick={() => (last ? onFinish() : setIndex((i) => i + 1))}
-            className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover"
-          >
-            {last ? 'Einrichtung abschließen' : 'Weiter'}
-          </button>
-        </div>
-      </div>
+  if (error && !settings) return <div className="p-8"><PageError error={error} /></div>;
+  if (!settings) return <div className="p-8"><Loading /></div>;
+  const current = STEPS[step];
+
+  return <div className="flex min-h-full items-center justify-center bg-canvas p-6">
+    <div className="w-full max-w-4xl rounded-xl border border-border bg-surface shadow-elev2">
+      <header className="border-b border-border px-6 py-5"><div className="flex items-center justify-between gap-4"><div><p className="text-xs uppercase text-primary">Ersteinrichtung</p><h1 className="mt-1 text-xl font-semibold">Noctura produktiv einrichten</h1></div>{onSkip && <button type="button" onClick={onSkip} className="text-sm text-subtle hover:text-text">Später fortsetzen</button>}</div><ol className="mt-5 grid grid-cols-4 gap-2">{STEPS.map((entry, index) => <li key={entry.id} className={`rounded px-2 py-1.5 text-center text-xs ${index === step ? 'bg-primary-soft font-medium' : index < step ? 'text-primary' : 'text-subtle'}`}>{index + 1}. {entry.title}</li>)}</ol></header>
+      <main className="max-h-[65vh] overflow-y-auto p-6"><BusinessSettingsForm value={settings} onChange={setSettings} sections={[...current.sections]} />{error && <div className="mt-4"><PageError error={error} /></div>}</main>
+      <footer className="flex items-center justify-between border-t border-border px-6 py-4"><button type="button" disabled={step === 0 || busy} onClick={() => { setError(null); setStep((value) => value - 1); }} className={buttonSecondary}>Zurück</button><button type="button" disabled={busy} onClick={() => void next()} className={buttonPrimary}>{step === STEPS.length - 1 ? 'Einrichtung abschließen' : 'Weiter'}</button></footer>
     </div>
-  );
+  </div>;
 }

@@ -96,7 +96,7 @@ pub async fn list(pool: &SqlitePool, query: Option<&str>, include_archived: bool
     let pattern = query.map(|q| format!("%{q}%"));
     let rows = sqlx::query_as::<_, Customer>(
         r#"
-        SELECT id, number, type, company, first_name, last_name, email, phone,
+        SELECT id, number, type AS kind, company, first_name, last_name, email, phone,
                vat_id, tax_status, payment_terms_days, discount_bp, archived_at
         FROM customer
         WHERE deleted_at IS NULL
@@ -183,7 +183,7 @@ pub async fn update(pool: &SqlitePool, id: &str, input: CustomerInput) -> Result
 /// vielen Kunden schnell zu bleiben.
 pub async fn get(pool: &SqlitePool, id: &str) -> Result<Option<CustomerDetail>, AppError> {
     let customer = sqlx::query_as::<_, Customer>(
-        "SELECT id, number, type, company, first_name, last_name, email, phone,
+        "SELECT id, number, type AS kind, company, first_name, last_name, email, phone,
                 vat_id, tax_status, payment_terms_days, discount_bp, archived_at
          FROM customer WHERE id = ?1 AND deleted_at IS NULL",
     )

@@ -1,13 +1,13 @@
 // Kein Konsolenfenster unter Windows im Release-Build.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod audit;
+mod commands;
+mod error;
 mod mail;
 mod money;
 mod pdf;
 mod repo;
-mod audit;
-mod commands;
-mod error;
 
 fn main() {
     tracing_subscriber::fmt()
@@ -23,15 +23,18 @@ fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_stronghold::Builder::new(|password| {
-            // Ableitung des Stronghold-Schluessels. Kein Passwort im Klartext,
-            // keine feste Vorgabe im Quelltext.
-            blake3::derive_key("noctura.stronghold.v1", password.as_bytes()).to_vec()
-        }).build())
+        .plugin(
+            tauri_plugin_stronghold::Builder::new(|password| {
+                blake3::derive_key("noctura.stronghold.v1", password.as_bytes()).to_vec()
+            })
+            .build(),
+        )
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::block_on(async move {
-                commands::db::init(&handle).await.expect("Datenbank konnte nicht geoeffnet werden");
+                commands::db::init(&handle)
+                    .await
+                    .expect("Datenbank konnte nicht geöffnet werden");
             });
             Ok(())
         })
@@ -39,6 +42,45 @@ fn main() {
             commands::invoice::calculate_preview,
             commands::invoice::finalize_invoice,
             commands::invoice::cancel_invoice,
+            commands::documents::list_invoices,
+            commands::documents::get_invoice_draft,
+            commands::documents::save_invoice_draft,
+            commands::documents::delete_invoice_draft,
+            commands::documents::register_invoice_payment,
+            commands::documents::list_quotes,
+            commands::documents::get_quote_draft,
+            commands::documents::save_quote_draft,
+            commands::documents::delete_quote_draft,
+            commands::documents::finalize_quote,
+            commands::documents::update_quote_status,
+            commands::documents::convert_quote_to_invoice,
+            commands::documents::list_credit_notes,
+            commands::documents::create_credit_note_from_invoice,
+            commands::documents::finalize_credit_note,
+            commands::discounts::list_discounts,
+            commands::discounts::save_discount,
+            commands::discounts::set_discount_active,
+            commands::discounts::delete_discount,
+            commands::reports::report_data,
+            commands::tax::list_expenses,
+            commands::tax::save_expense,
+            commands::tax::delete_expense,
+            commands::tax::tax_year_summary,
+            commands::tax::export_tax_package,
+            commands::outbox::list_outbox,
+            commands::outbox::retry_outbox_item,
+            commands::outbox::cancel_outbox_item,
+            commands::outbox::process_outbox_now,
+            commands::outbox::queue_invoice_email,
+            commands::pdf_export::generate_document_pdf,
+            commands::search::global_search,
+            commands::workspace_settings::get_business_settings,
+            commands::workspace_settings::save_business_settings,
+            commands::workspace_settings::onboarding_status,
+            commands::workspace_settings::complete_onboarding,
+            commands::workspace_settings::choose_company_logo,
+            commands::workspace_settings::remove_company_logo,
+            commands::workspace_settings::company_logo_data_url,
             commands::license::activate_license,
             commands::license::stored_license_key,
             commands::license::license_heartbeat,
