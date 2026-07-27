@@ -42,7 +42,10 @@ fn check_fonts() {
     eprintln!("    macOS / Linux / Git Bash / WSL:");
     eprintln!("      bash apps/desktop/scripts/fetch-fonts.sh");
     eprintln!();
-    eprintln!("  Danach diesen Build erneut starten. Details: fonts/README.md");
+    eprintln!("  Schlaegt der Download fehl (Firmenproxy, falsche URL): manueller Weg");
+    eprintln!("  in fonts/README.md, Abschnitt 'Manuell besorgen'.");
+    eprintln!();
+    eprintln!("  Danach diesen Build erneut starten.");
     eprintln!();
     panic!("Build abgebrochen: {} Schriftdatei(en) fehlen.", missing.len());
 }
