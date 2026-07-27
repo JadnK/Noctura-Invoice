@@ -45,6 +45,12 @@ fn main() {
             commands::backup::create_backup,
             commands::backup::inspect_backup,
             commands::backup::restore_backup,
+            commands::company::register_company_account,
+            commands::company::login_company_account,
+            commands::company::company_session_status,
+            commands::company::logout_company_account,
+            commands::company::list_company_users,
+            commands::company::create_company_user,
         ])
         .run(tauri::generate_context!())
         .expect("Anwendung konnte nicht gestartet werden");

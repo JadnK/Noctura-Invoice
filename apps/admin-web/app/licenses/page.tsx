@@ -72,6 +72,11 @@ export default async function LicensesPage() {
                 <td className="border-b border-divider text-muted">
                   {license.expiresAt ? license.expiresAt.slice(0, 10) : 'unbefristet'}
                 </td>
+                <td className="border-b border-divider pr-3 text-right">
+                  <a href={`/licenses/${license.id}`} className="text-sm" style={{ color: 'var(--n-primary)' }}>
+                    Bearbeiten
+                  </a>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -70,3 +70,33 @@ export const releaseSchema = z.object({
 export type ActivateInput = z.infer<typeof activateSchema>;
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
 export type CreateLicenseInput = z.infer<typeof createLicenseSchema>;
+
+// --- Firmenkonten (LicenseUser) ---
+
+const password = z.string().min(10).max(200);
+const displayName = z.string().min(1).max(120);
+const email = z.string().email().max(200);
+
+export const registerLicenseUserSchema = z.object({
+  licenseKey: licenseKey,
+  email,
+  password,
+  displayName,
+}).strict();
+
+export const loginLicenseUserSchema = z.object({
+  licenseKey: licenseKey,
+  email,
+  password,
+}).strict();
+
+export const createLicenseUserSchema = z.object({
+  email,
+  password,
+  displayName,
+  role: z.enum(['admin', 'member']).default('member'),
+}).strict();
+
+export type RegisterLicenseUserInput = z.infer<typeof registerLicenseUserSchema>;
+export type LoginLicenseUserInput = z.infer<typeof loginLicenseUserSchema>;
+export type CreateLicenseUserInput = z.infer<typeof createLicenseUserSchema>;

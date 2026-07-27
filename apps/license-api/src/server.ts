@@ -15,6 +15,7 @@ import { loadPrivateKey } from './lib/crypto.ts';
 import { ApiError } from './lib/errors.ts';
 import { registerLicenseRoutes } from './routes/licenses.ts';
 import { registerAdminRoutes } from './routes/admin.ts';
+import { registerAuthRoutes } from './routes/auth.ts';
 import { registerHealthRoutes } from './routes/health.ts';
 
 const REQUIRED_ENV = [
@@ -76,6 +77,7 @@ export async function build() {
   await app.register(registerHealthRoutes);
   await app.register(registerLicenseRoutes, { prefix: `${basePath}/licenses` });
   await app.register(registerAdminRoutes, { prefix: `${basePath}/admin` });
+  await app.register(registerAuthRoutes, { prefix: `${basePath}/auth` });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {

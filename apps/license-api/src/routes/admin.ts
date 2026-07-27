@@ -77,6 +77,25 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ licenses });
   });
 
+  app.get('/licenses/:id', async (request, reply) => {
+    await requireSession(request);
+    const { id } = request.params as { id: string };
+    const license = await app.prisma.license.findUnique({
+      where: { id },
+      include: {
+        owner: true,
+        features: true,
+        devices: { orderBy: { lastSeenAt: 'desc' } },
+        users: {
+          select: { id: true, email: true, displayName: true, role: true, active: true, createdAt: true, lastLoginAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!license) throw new ApiError('LIC_NOT_FOUND', 404);
+    return reply.send({ license });
+  });
+
   app.post('/licenses', async (request, reply) => {
     await requireSession(request);
     const parsed = createLicenseSchema.safeParse(request.body);

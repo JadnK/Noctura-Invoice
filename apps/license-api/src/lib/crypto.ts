@@ -50,20 +50,35 @@ export interface HashedSecret {
   readonly hash: string;
 }
 
-/** Admin-Token: scrypt, N=2^15. Rueckgabe wird in der Datenbank abgelegt. */
-export function hashAdminToken(token: string): HashedSecret {
+const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: 96 * 1024 * 1024 } as const;
+
+/**
+ * Generisches scrypt-Hashing fuer alles, das gegen genau einen gespeicherten
+ * Wert geprueft wird (nicht nachgeschlagen werden muss): Admin-Access-Token,
+ * Firmenkonto-Passwoerter. Fuer Lizenzschluessel dagegen HMAC (siehe oben) -
+ * die muessen nachschlagbar bleiben, ein Salt pro Datensatz waere dafuer
+ * unbrauchbar.
+ */
+export function hashSecret(value: string): HashedSecret {
   const salt = randomBytes(16);
-  const hash = scryptSync(token, salt, 64, { N: 32768, r: 8, p: 1, maxmem: 96 * 1024 * 1024 });
+  const hash = scryptSync(value, salt, 64, SCRYPT_PARAMS);
   return { salt: salt.toString('hex'), hash: hash.toString('hex') };
 }
 
-export function verifyAdminToken(token: string, stored: HashedSecret): boolean {
+export function verifySecret(value: string, stored: HashedSecret): boolean {
   const salt = Buffer.from(stored.salt, 'hex');
   const expected = Buffer.from(stored.hash, 'hex');
-  const actual = scryptSync(token, salt, expected.length, {
-    N: 32768, r: 8, p: 1, maxmem: 96 * 1024 * 1024,
-  });
+  const actual = scryptSync(value, salt, expected.length, SCRYPT_PARAMS);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+/** Admin-Token: scrypt, N=2^15. Rueckgabe wird in der Datenbank abgelegt. */
+export function hashAdminToken(token: string): HashedSecret {
+  return hashSecret(token);
+}
+
+export function verifyAdminToken(token: string, stored: HashedSecret): boolean {
+  return verifySecret(token, stored);
 }
 
 /** Mindestens 32 Zufallsbytes, base64url — fuer Access-Token und Sessions. */

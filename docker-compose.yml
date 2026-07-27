@@ -41,6 +41,10 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     environment:
+      # POSTGRES_PASSWORD landet hier unveraendert, ohne URL-Kodierung, in
+      # der Verbindungs-URL. Muss deshalb URL-sicher sein (siehe .env.example)
+      # - sonst meldet Prisma "P1013: invalid port number", was in die
+      # falsche Richtung fuehrt.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-noctura}?schema=public
       REDIS_URL: redis://redis:6379
       LICENSE_KEY_PEPPER: ${LICENSE_KEY_PEPPER:?LICENSE_KEY_PEPPER fehlt in .env}

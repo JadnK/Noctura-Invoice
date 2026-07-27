@@ -107,7 +107,7 @@ export default function App() {
         {page === 'templates' && <TemplateEditor />}
         {page === 'template-editor' && <TemplateEditor />}
         {page === 'settings' && <Settings />}
-        {page === 'license' && <License cache={{ status: 'none' }} />}
+        {page === 'license' && <License />}
         {page === 'outbox' && <Outbox entries={[]} />}
         {page === 'help' && <Help />}
 

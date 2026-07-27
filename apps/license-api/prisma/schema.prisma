@@ -52,6 +52,7 @@ model License {
   features      LicenseFeature[]
   devices       LicenseDevice[]
   activations   LicenseActivation[]
+  users         LicenseUser[]
 
   @@index([status, expiresAt])
   @@index([keyPrefix])
@@ -93,6 +94,49 @@ model LicenseActivation {
 
   @@index([at])
   @@index([licenseId, at])
+}
+
+// Firmenkonten pro Lizenz. Getrennt vom Admin-Zugang (AdminSession): der
+// Betreiber verwaltet Lizenzen, die Firma hinter einer Lizenz verwaltet ihre
+// eigenen Mitarbeiterkonten selbst. Der erste angelegte Nutzer einer Lizenz
+// wird automatisch zum Firmen-Admin; weitere Konten legt nur ein Firmen-Admin
+// derselben Lizenz an (siehe requireLicenseUser in routes/auth.ts).
+enum LicenseUserRole {
+  admin
+  member
+}
+
+model LicenseUser {
+  id           String          @id @default(uuid())
+  licenseId    String
+  license      License         @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  email        String
+  passwordHash String
+  passwordSalt String
+  displayName  String
+  role         LicenseUserRole @default(member)
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  lastLoginAt  DateTime?
+  sessions     LicenseUserSession[]
+
+  // Eine E-Mail-Adresse ist nur innerhalb derselben Lizenz eindeutig -
+  // dieselbe Person kann bei zwei Firmen mit unterschiedlichen Lizenzen
+  // unterschiedliche Konten haben.
+  @@unique([licenseId, email])
+}
+
+model LicenseUserSession {
+  id        String      @id @default(uuid())
+  userId    String
+  user      LicenseUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String      @unique
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  ipHash    String?
+
+  @@index([expiresAt])
 }
 
 model AppRelease {
