@@ -140,7 +140,10 @@
 .n-amount__fraction { color: var(--n-text-muted); }
 .n-amount--negative { color: var(--n-danger); }
 
-/* Statusleiste: 3px links, Farbe aus dem Belegstatus. */
+/* Statusleiste: 3px links in der Statusfarbe, plus dieselbe dezente
+   Kantenaufhellung wie jede andere angehobene Flaeche. Beides in einem
+   box-shadow-Wert, damit sich zwei Klassen auf demselben Element nie
+   gegenseitig stillschweigend ueberschreiben koennen. */
 .n-state-rail {
-  box-shadow: inset 3px 0 0 0 var(--rail, var(--n-state-draft));
+  box-shadow: inset 3px 0 0 0 var(--rail, var(--n-state-draft)), var(--n-elev-1);
 }

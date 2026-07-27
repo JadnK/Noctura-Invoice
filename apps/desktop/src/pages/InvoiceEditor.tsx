@@ -110,7 +110,7 @@ export function InvoiceEditor({ taxScheme = 'standard' as TaxScheme }) {
         </button>
       </section>
 
-      <aside className="h-fit rounded-lg border border-border bg-surface p-4">
+      <aside className="h-fit rounded-lg border border-border bg-surface p-4 shadow-elev1">
         <h2 className="mb-3 text-sm font-medium">Summen</h2>
         <dl className="space-y-1.5 text-sm">
           <div className="flex justify-between">

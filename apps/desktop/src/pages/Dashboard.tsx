@@ -19,7 +19,7 @@ export interface DashboardProps {
 
 function Kpi({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-elev1">
       <p className="text-xs uppercase text-subtle" style={{ letterSpacing: 'var(--n-tracking-caps)' }}>{label}</p>
       <p className="mt-2 text-2xl">{children}</p>
       {hint && <p className="mt-1 text-xs text-subtle">{hint}</p>}
@@ -60,7 +60,7 @@ export function Dashboard(props: DashboardProps) {
         </Kpi>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section className="rounded-lg border border-border bg-surface p-4 shadow-elev1">
         <h2 className="mb-4 text-sm font-medium">Umsatzverlauf</h2>
         {props.revenueSeries.length === 0 ? (
           <p className="py-8 text-center text-sm text-subtle">

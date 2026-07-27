@@ -164,7 +164,7 @@ function InvoiceList({ rows, onNew }: { rows: readonly Row[]; onNew: () => void 
 
 function EmptyPage({ title }: { title: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-10 text-center">
+    <div className="rounded-lg border border-border bg-surface p-10 text-center shadow-elev1">
       <h1 className="text-lg font-medium">{title}</h1>
       <p className="mt-2 text-sm text-muted">
         Dieser Bereich nutzt dieselben Bausteine wie Rechnungen und Kunden. Die Datenabfragen

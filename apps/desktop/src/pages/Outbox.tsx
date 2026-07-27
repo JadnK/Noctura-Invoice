@@ -28,7 +28,7 @@ export function Outbox({ entries }: { entries: readonly OutboxEntry[] }) {
       <h1 className="text-xl font-semibold tracking-tight">E-Mail-Ausgang</h1>
 
       {entries.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-elev1">
           <p className="font-medium">Nichts im Ausgang</p>
           <p className="mt-1 text-sm text-muted">Versendete Rechnungen und Mahnungen erscheinen hier mit ihrem Zustand.</p>
         </div>
