@@ -1,89 +1,93 @@
-# PowerShell-Entsprechung zu fetch-fonts.sh, fuer Windows ohne Git Bash/WSL.
+# Holt die eingebetteten Schriften fuer lokale Windows-Builds.
+# Aufruf:
 #   powershell -ExecutionPolicy Bypass -File apps\desktop\scripts\fetch-fonts.ps1
 $ErrorActionPreference = 'Stop'
-
-# Windows PowerShell 5.1 handshaked ohne diese Zeile oft nicht automatisch mit
-# TLS 1.2. GitHub verlangt mindestens TLS 1.2; ohne die Zeile bricht die
-# Verbindung ab, bevor ueberhaupt eine Antwort ankommt - "Die Verbindung wurde
-# unerwartet getrennt", nicht "404". PowerShell 7 (pwsh) braucht das nicht,
-# schadet dort aber auch nicht.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $Dest = Join-Path (Split-Path -Parent $PSScriptRoot) 'src-tauri\fonts'
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
-
-# Eine Schriftdatei ist niemals kleiner als ein paar KB. Kommt stattdessen eine
-# Fehlerseite oder ein leerer Rumpf zurueck, faellt das hier auf statt still
-# eine kaputte Datei abzulegen, die erst beim Kompilieren als raetselhafter
-# Fehler auftaucht.
 $MinBytes = 2048
 
-function Write-FontDownloadError {
-    param([string]$Name, [string]$Detail)
-    Write-Host ""
-    Write-Host "  Download fehlgeschlagen: $Name" -ForegroundColor Yellow
-    Write-Host "  $Detail"
-    Write-Host "  Test zur Eingrenzung: Test-NetConnection github.com -Port 443"
-    Write-Host "  Steht dort TcpTestSucceeded = False, blockiert das Firmennetz GitHub"
-    Write-Host "  grundsaetzlich - dann hilft nur der manuelle Weg:"
-    Write-Host "  apps\desktop\src-tauri\fonts\README.md, Abschnitt 'Manuell besorgen'."
-    Write-Host ""
+function Test-ValidFont {
+    param([string]$Path)
+    return (Test-Path $Path) -and ((Get-Item $Path).Length -ge $MinBytes)
+}
+
+function Get-RemoteFile {
+    param([string]$Url, [string]$Target)
+
+    $temporary = "$Target.download"
+    Remove-Item -Path $temporary -ErrorAction SilentlyContinue
+    try {
+        Invoke-WebRequest -Uri $Url -OutFile $temporary -UseBasicParsing -TimeoutSec 60
+    } catch {
+        Remove-Item -Path $temporary -ErrorAction SilentlyContinue
+        throw "Download fehlgeschlagen: $Url`n$($_.Exception.Message)"
+    }
+    if (-not (Test-ValidFont $temporary)) {
+        Remove-Item -Path $temporary -ErrorAction SilentlyContinue
+        throw "Die Antwort fuer $(Split-Path -Leaf $Target) ist keine gueltige Schriftdatei."
+    }
+    Move-Item -Path $temporary -Destination $Target -Force
 }
 
 function Get-FontFile {
     param([string]$Url, [string]$Name)
-    $Target = Join-Path $Dest $Name
 
-    if ((Test-Path $Target) -and (Get-Item $Target).Length -ge $MinBytes) {
+    $target = Join-Path $Dest $Name
+    if (Test-ValidFont $target) {
         Write-Host "vorhanden: $Name"
         return
     }
-
     Write-Host "lade: $Name"
+    Get-RemoteFile -Url $Url -Target $target
+}
 
-    # Erster Versuch: direkte Verbindung.
-    try {
-        Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing -TimeoutSec 30
-    } catch {
-        Remove-Item -Path $Target -ErrorAction SilentlyContinue
-
-        # Zweiter Versuch: den in Windows hinterlegten Systemproxy verwenden.
-        # Invoke-WebRequest in Windows PowerShell 5.1 nutzt ihn nicht immer
-        # automatisch, auch wenn er im Betriebssystem konfiguriert ist - genau
-        # das erzeugt haeufig exakt dieses Bild: "Verbindung unerwartet
-        # getrennt" trotz funktionierendem Internetzugang im Browser.
-        $systemProxy = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy($Url)
-        $usesProxy = $systemProxy -and $systemProxy.AbsoluteUri -ne $Url
-
-        if ($usesProxy) {
-            Write-Host "  direkter Zugriff fehlgeschlagen, versuche es ueber den Systemproxy ($systemProxy)"
-            try {
-                Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing -TimeoutSec 30 `
-                    -Proxy $systemProxy -ProxyUseDefaultCredentials
-            } catch {
-                Remove-Item -Path $Target -ErrorAction SilentlyContinue
-                Write-FontDownloadError -Name $Name -Detail $_.Exception.Message
-                throw
-            }
-        } else {
-            Write-FontDownloadError -Name $Name -Detail $_.Exception.Message
-            throw
-        }
+function Get-InterFonts {
+    $regular = Join-Path $Dest 'Inter-Regular.ttf'
+    $semibold = Join-Path $Dest 'Inter-SemiBold.ttf'
+    if ((Test-ValidFont $regular) -and (Test-ValidFont $semibold)) {
+        Write-Host 'vorhanden: Inter-Regular.ttf'
+        Write-Host 'vorhanden: Inter-SemiBold.ttf'
+        return
     }
 
-    if ((Get-Item $Target).Length -lt $MinBytes) {
-        Remove-Item -Path $Target -ErrorAction SilentlyContinue
-        throw "Antwort fuer $Name ist zu klein fuer eine echte Schriftdatei (vermutlich eine Fehlerseite). URL pruefen oder manuell besorgen, siehe fonts/README.md."
+    $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("noctura-inter-" + [Guid]::NewGuid())
+    $archive = Join-Path $temporary 'Inter-4.0.zip'
+    $expanded = Join-Path $temporary 'expanded'
+    New-Item -ItemType Directory -Force -Path $expanded | Out-Null
+
+    try {
+        Write-Host 'lade: Inter 4.0'
+        Invoke-WebRequest `
+            -Uri 'https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip' `
+            -OutFile $archive `
+            -UseBasicParsing `
+            -TimeoutSec 120
+        Expand-Archive -Path $archive -DestinationPath $expanded -Force
+
+        $regularSource = Get-ChildItem -Path $expanded -Recurse -File -Filter 'Inter-Regular.ttf' | Select-Object -First 1
+        $semiboldSource = Get-ChildItem -Path $expanded -Recurse -File -Filter 'Inter-SemiBold.ttf' | Select-Object -First 1
+        if (-not $regularSource -or -not $semiboldSource) {
+            throw 'Das Inter-Archiv enthaelt die erwarteten TTF-Dateien nicht.'
+        }
+        if ($regularSource.Length -lt $MinBytes -or $semiboldSource.Length -lt $MinBytes) {
+            throw 'Die Inter-Dateien im Archiv sind ungueltig oder unvollstaendig.'
+        }
+
+        Copy-Item -Path $regularSource.FullName -Destination $regular -Force
+        Copy-Item -Path $semiboldSource.FullName -Destination $semibold -Force
+    } finally {
+        Remove-Item -Path $temporary -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-$Inter = 'https://github.com/rsms/inter/raw/v4.0/docs/font-files'
-$Plex  = 'https://github.com/IBM/plex/raw/v6.4.0/IBM-Plex-Mono/fonts/complete/ttf'
-$Serif = 'https://github.com/adobe-fonts/source-serif/raw/4.005R/TTF'
-
-Get-FontFile "$Inter/Inter-Regular.ttf"        'Inter-Regular.ttf'
-Get-FontFile "$Inter/Inter-SemiBold.ttf"       'Inter-SemiBold.ttf'
-Get-FontFile "$Plex/IBMPlexMono-Regular.ttf"   'IBMPlexMono-Regular.ttf'
-Get-FontFile "$Serif/SourceSerif4-Regular.ttf" 'SourceSerif4-Regular.ttf'
+Get-InterFonts
+Get-FontFile `
+    'https://raw.githubusercontent.com/IBM/plex/v6.4.0/IBM-Plex-Mono/fonts/complete/ttf/IBMPlexMono-Regular.ttf' `
+    'IBMPlexMono-Regular.ttf'
+Get-FontFile `
+    'https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/TTF/SourceSerif4-Regular.ttf' `
+    'SourceSerif4-Regular.ttf'
 
 Write-Host "Alle Schriften liegen unter $Dest."

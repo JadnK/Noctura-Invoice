@@ -60,11 +60,14 @@ export async function build() {
     hsts: { maxAge: 31_536_000, includeSubDomains: true },
     referrerPolicy: { policy: 'no-referrer' },
   });
-
-  await app.register(cookie, { secret: false });
+  // Die Admin-Cookies sind absichtlich unsigniert: Der eigentliche Schutz
+  // erfolgt ueber zufaellige serverseitige Session- und CSRF-Tokens.
+  await app.register(cookie);
   await app.register(rateLimit, {
     global: false,
-    redis: process.env.REDIS_URL ? new (await import('ioredis')).default(process.env.REDIS_URL) : undefined,
+    redis: process.env.REDIS_URL
+      ? new (await import('ioredis')).default(process.env.REDIS_URL)
+      : undefined,
   });
 
   const prisma = new PrismaClient();
@@ -73,7 +76,6 @@ export async function build() {
 
   app.decorate('prisma', prisma);
   app.decorate('signingKey', privateKey);
-
   await app.register(registerHealthRoutes);
   await app.register(registerLicenseRoutes, { prefix: `${basePath}/licenses` });
   await app.register(registerAdminRoutes, { prefix: `${basePath}/admin` });
@@ -88,8 +90,9 @@ export async function build() {
     request.log.error({ err: error, id: wrapped.id }, 'Unerwarteter Fehler');
     return reply.status(500).send(wrapped.toResponse());
   });
-
-  app.addHook('onClose', async () => { await prisma.$disconnect(); });
+  app.addHook('onClose', async () => {
+    await prisma.$disconnect();
+  });
   return app;
 }
 
