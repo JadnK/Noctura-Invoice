@@ -69,6 +69,45 @@ export interface CustomerInput {
   country?: string;
 }
 
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  kind: string;
+  netPriceCents: number;
+  taxRateBp: number;
+  unitId: string | null;
+  defaultDiscountBp: number;
+  archivedAt: string | null;
+}
+
+export interface ProductInput {
+  sku: string;
+  name: string;
+  kind: string;
+  netPriceCents: number;
+  taxRateBp: number;
+  unitId?: string;
+  defaultDiscountBp: number;
+  shortDescription?: string;
+}
+
+export interface TemplateSummary {
+  id: string;
+  name: string;
+  version: number;
+  isDefault: boolean;
+  updatedAt: string;
+}
+
+export interface TemplateDetail {
+  id: string;
+  name: string;
+  version: number;
+  isDefault: boolean;
+  layoutJson: string;
+}
+
 export interface DashboardData {
   revenueMonthCents: number;
   revenueYearCents: number;
@@ -135,7 +174,19 @@ export const api = {
   createCustomer: (input: CustomerInput) => call<Customer>('create_customer', { input }),
   updateCustomer: (id: string, input: CustomerInput) => call<Customer>('update_customer', { id, input }),
   archiveCustomer: (id: string) => call<string>('archive_customer', { id }),
-  products: (query?: string) => call<unknown[]>('list_products', { query }),
+  products: (query?: string) => call<Product[]>('list_products', { query: query || undefined }),
+  product: (id: string) => call<Product | null>('get_product', { id }),
+  createProduct: (input: ProductInput) => call<Product>('create_product', { input }),
+  updateProduct: (id: string, input: ProductInput) => call<Product>('update_product', { id, input }),
+  archiveProduct: (id: string) => call<string>('archive_product', { id }),
+  units: () => call<[string, string][]>('list_units'),
+  templates: () => call<TemplateSummary[]>('list_templates'),
+  template: (id: string) => call<TemplateDetail | null>('get_template', { id }),
+  createTemplate: (name: string, layoutJson: string) => call<TemplateDetail>('create_template', { name, layoutJson }),
+  updateTemplate: (id: string, name: string, layoutJson: string) =>
+    call<TemplateDetail>('update_template', { id, name, layoutJson }),
+  setDefaultTemplate: (id: string) => call<void>('set_default_template', { id }),
+  deleteTemplate: (id: string) => call<void>('delete_template', { id }),
   calculate: (input: unknown) => call<unknown>('calculate_preview', { input }),
   finalize: (invoiceId: string, input: unknown, expectedGrossCents: number) =>
     call<{ number: string; finalizedAt: string }>('finalize_invoice', { invoiceId, input, expectedGrossCents }),

@@ -5,3 +5,4 @@ pub mod customers;
 pub mod products;
 pub mod invoices;
 pub mod numbering;
+pub mod templates;

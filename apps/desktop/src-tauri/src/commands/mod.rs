@@ -4,7 +4,10 @@
 pub mod backup;
 pub mod company;
 pub mod customers;
+pub mod dashboard;
 pub mod db;
 pub mod email_settings;
+pub mod products;
+pub mod templates;
 pub mod invoice;
 pub mod license;

@@ -6,8 +6,9 @@ import { Amount } from './components/Amount';
 import { StatusBadge, stateRailColor } from './components/StatusBadge';
 import { Dashboard } from './pages/Dashboard';
 import { Customers } from './pages/Customers';
+import { Products } from './pages/Products';
 import { InvoiceEditor } from './pages/InvoiceEditor';
-import { TemplateEditor } from './pages/TemplateEditor';
+import { Templates } from './pages/Templates';
 import { Settings } from './pages/Settings';
 import { License } from './pages/License';
 import { Outbox } from './pages/Outbox';
@@ -79,33 +80,22 @@ export default function App() {
   return (
     <>
       <AppShell active={page} onNavigate={navigate}>
-        {page === 'dashboard' && (
-          <Dashboard
-            revenueMonthCents={1_842_300} revenueYearCents={12_408_950}
-            openCents={517_820} overdueCents={89_250}
-            draftCount={1} activeCustomers={2} averagePaymentDays={11}
-            revenueSeries={[
-              { month: 'Feb', cents: 820_000 }, { month: 'Mär', cents: 1_140_000 },
-              { month: 'Apr', cents: 960_000 }, { month: 'Mai', cents: 1_420_000 },
-              { month: 'Jun', cents: 1_310_000 }, { month: 'Jul', cents: 1_842_300 },
-            ]}
-            onNavigate={navigate}
-          />
-        )}
-
+        {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
         {page === 'invoices' && <InvoiceList rows={DEMO_INVOICES} onNew={() => navigate('invoice-new')} />}
         {page === 'invoice-new' && <InvoiceEditor />}
         {page === 'customers' && (
           <Customers onOpen={() => navigate('customers')} />
         )}
-        {page === 'templates' && <TemplateEditor />}
-        {page === 'template-editor' && <TemplateEditor />}
+        {page === 'templates' && <Templates />}
+        {page === 'template-editor' && <Templates />}
         {page === 'settings' && <Settings />}
         {page === 'license' && <License />}
         {page === 'outbox' && <Outbox entries={[]} />}
         {page === 'help' && <Help />}
 
-        {['quotes', 'credit-notes', 'products', 'discounts', 'reports'].includes(page) && (
+        {page === 'products' && <Products />}
+
+        {['quotes', 'credit-notes', 'discounts', 'reports'].includes(page) && (
           <EmptyPage title={NAVIGATION.find((item) => item.id === page)?.label ?? ''} />
         )}
       </AppShell>
