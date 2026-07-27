@@ -42,19 +42,27 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 async function csrfHeader(): Promise<HeadersInit> {
-  const response = await fetch('/api/v1/admin/session', { credentials: 'same-origin' });
+  const response = await fetch('/api/v1/admin/session', {
+    credentials: 'same-origin',
+  });
+
   if (!response.ok) {
     throw new Error('Admin-Sitzung ist abgelaufen. Bitte erneut anmelden.');
   }
 
   const body = await response.json() as { csrfToken?: string };
+
   if (!body.csrfToken) {
     throw new Error('Sicherheits-Token konnte nicht geladen werden.');
   }
 
   sessionStorage.setItem('csrf', body.csrfToken);
-  return { 'Content-Type': 'application/json', 'X-CSRF-Token': body.csrfToken };
+
+  return {
+    'X-CSRF-Token': body.csrfToken,
+  };
 }
+
 export default function LicenseDetailPage({ params }: { params: { id: string } }) {
   const [license, setLicense] = useState<LicenseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,18 +85,35 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
   async function runAction(path: string, body?: unknown) {
     setBusy(true);
     setError(null);
+
     try {
-      const response = await fetch(`/api/v1/admin/licenses/${params.id}${path}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: await csrfHeader(),
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      const headers = await csrfHeader();
+
+      if (body !== undefined) {
+        (headers as Record<string, string>)['Content-Type'] = 'application/json';
+      }
+
+      const response = await fetch(
+        `/api/v1/admin/licenses/${params.id}${path}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+        },
+      );
+
       if (!response.ok) {
         const errBody = await response.json().catch(() => null);
-        setError(errBody?.error?.message ?? 'Aktion fehlgeschlagen.');
+
+        setError(
+          errBody?.error?.message ??
+          errBody?.message ??
+          `Aktion fehlgeschlagen (${response.status}).`,
+        );
         return;
       }
+
       await load();
       setShowBlockForm(false);
       setBlockReason('');
