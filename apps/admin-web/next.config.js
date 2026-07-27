@@ -1,19 +1,14 @@
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
 /** @type {import('next').NextConfig} */
 export default {
   output: 'standalone',
   poweredByHeader: false,
-  // Ohne diese Angabe versucht Next, die Monorepo-Wurzel selbst zu erraten
-  // (ueblicherweise durch Hochlaufen bis zu einem package-lock.json). Da
-  // keins eingecheckt ist, waere das Ergebnis nicht verlaesslich - explizit
-  // gesetzt statt geraten. Funktioniert sowohl lokal (echte Repo-Wurzel)
-  // als auch im Docker-Build (dort liegt admin-web unter /repo/apps/admin-web,
-  // "../../" fuehrt ebenso zur Wurzel des kopierten Kontexts).
-  outputFileTracingRoot: join(__dirname, '../../'),
+  // Kein outputFileTracingRoot: admin-web hat keine internen @noctura/*-
+  // Laufzeitabhaengigkeiten (packages/ui liefert nur CSS, das beim Bauen
+  // in echtes CSS uebersetzt wird - Next muss dafuer zur Laufzeit nichts
+  // nachverfolgen). Ohne gesetzten Wert findet Next kein Lockfile oberhalb
+  // dieses Ordners (es gibt keins im Repository) und behandelt admin-web
+  // als eigenstaendiges Projekt - genau richtig hier. server.js landet
+  // dadurch flach in .next/standalone/, nicht verschachtelt.
   async rewrites() {
     // Das Panel spricht die API ueber denselben Host an (ADR-0003).
     return [{ source: '/api/:path*', destination: `${process.env.API_INTERNAL_URL}/api/:path*` }];
