@@ -7,7 +7,7 @@
 //! bleibt.
 
 use crate::error::AppError;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::{Row, SqlitePool};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

@@ -249,7 +249,6 @@ pub async fn license_heartbeat() -> Result<LicenseState, ErrorPayloadWrapper> {
     }
 }
 
-#[tauri::command]
 /// Der lokal gemerkte Klartextschluessel, fuer Anmeldung/Registrierung eines
 /// Firmenkontos - damit die Oberflaeche ihn nicht nach jeder Aktivierung
 /// erneut vom Menschen abfragen muss. Kein zusaetzliches Geheimnis: das
@@ -265,6 +264,7 @@ pub async fn stored_license_key() -> Option<String> {
         .flatten()
 }
 
+#[tauri::command]
 pub async fn license_status() -> LicenseState {
     let pool = db::pool();
     let row = sqlx::query_as::<_, (String, Option<String>, Option<String>, String, Option<String>)>(
