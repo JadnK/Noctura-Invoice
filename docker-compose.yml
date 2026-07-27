@@ -53,7 +53,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: 3000
     # Migrationen und Erstinitialisierung laufen vor dem Server, im selben Container.
-    command: ["sh", "-c", "npx prisma migrate deploy && node dist/scripts/bootstrap.js && node dist/server.js"]
+    command: ["sh", "-c", "npx prisma migrate deploy && node --experimental-strip-types scripts/bootstrap.ts && node --experimental-strip-types src/server.ts"]
     volumes:
       - license-secrets:/data/secrets
     ports:
