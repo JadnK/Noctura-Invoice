@@ -1,5 +1,44 @@
 # Betrieb
 
+## Nach jedem `git pull`: neu bauen, nicht nur neu starten
+
+**`docker compose up -d` baut nichts neu** - es startet die vorhandenen
+Images unveraendert weiter, auch wenn sich der Code seitdem geaendert hat.
+Neuer Code auf dem Server ohne Rebuild zeigt sich z. B. so:
+`Route POST:/api/v1/... not found` fuer einen Endpunkt, der im aktuellen
+Quelltext laengst existiert - der laufende Container kennt ihn schlicht
+noch nicht.
+
+Nach jedem `git pull` deshalb immer:
+
+    git pull
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+Nur `license-api` oder nur `admin-web` einzeln neu zu bauen spart etwas
+Zeit, ist aber nur sicher, wenn man genau weiss, dass sich wirklich nur in
+diesem einen Dienst etwas geaendert hat - eine Aenderung an der
+Lizenzverwaltung betrifft z. B. haeufig beide gleichzeitig (neuer
+Endpunkt in `license-api` UND die dazugehoerige Seite in `admin-web`).
+Im Zweifel immer beide bauen, wie oben.
+
+## Nach Aenderungen an `schema.prisma`: zusaetzlich das Datenbankschema abgleichen
+
+Ein Rebuild aendert nur den *Code* im Container (und den daraus generierten
+Prisma-Client), niemals die *tatsaechliche Datenbank*. Neue Modelle in
+`schema.prisma` (z. B. eine neue Tabelle) existieren nach einem Rebuild im
+Code, aber nicht in Postgres, bis das Schema separat abgeglichen wird.
+Zeigt sich als `P2021: The table ... does not exist in the current
+database` - obwohl der Rebuild fehlerfrei durchgelaufen ist.
+
+Nach jeder Aenderung an `schema.prisma` deshalb zusaetzlich zum Rebuild:
+
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml exec license-api npx prisma db push --accept-data-loss
+
+(`exec` statt `run --rm`, sobald der Dienst bereits gesund laeuft - siehe
+Abschnitt "Erststart" weiter unten fuer den Ablauf, wenn der Dienst noch
+gar nicht erfolgreich startet.)
+
 ## Erststart
 
 **Vor dem allerersten Start:** existieren unter `apps/license-api/prisma/migrations/`
