@@ -3,7 +3,11 @@
 Diese Dateien sind **nicht im Repository**: sie werden beim Build geholt. Das
 hält das Repository klein und macht die Herkunft nachvollziehbar.
 
-    ./scripts/fetch-fonts.sh
+    # macOS / Linux / Git Bash / WSL
+    bash apps/desktop/scripts/fetch-fonts.sh
+
+    # Windows PowerShell, ohne Git Bash oder WSL
+    powershell -ExecutionPolicy Bypass -File apps\desktop\scripts\fetch-fonts.ps1
 
 Benötigt werden:
 

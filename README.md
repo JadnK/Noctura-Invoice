@@ -116,8 +116,10 @@ Lokal auf einem Windows-Rechner mit Node 22, Rust (msvc), WebView2 und Visual
 Studio Build Tools:
 
     npm install
-    bash apps/desktop/scripts/fetch-fonts.sh
+    powershell -ExecutionPolicy Bypass -File apps\desktop\scripts\fetch-fonts.ps1
     npm run tauri:build --workspace @noctura/desktop
+
+(Mit Git Bash oder WSL stattdessen `bash apps/desktop/scripts/fetch-fonts.sh`.)
 
 **Server.** `release-server.yml` baut zwei Images in die Container-Registry; die
 Pakete sind privat. Der vollständige Ablauf für Erststart, Schlüsselerzeugung,
