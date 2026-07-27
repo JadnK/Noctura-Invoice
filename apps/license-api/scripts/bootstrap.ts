@@ -39,8 +39,11 @@ async function ensureAdminToken(): Promise<void> {
   if (existing) return;
   const result = await createAndPersistToken();
   await prisma.serverSetting.create({
-    key: 'admin_token', valueJson: result.stored,
-  } as never);
+    data: {
+      key: 'admin_token',
+      valueJson: result.stored,
+    },
+  });
   announceToken(result, (line) => console.log(line));
 }
 
