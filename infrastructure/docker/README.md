@@ -2,6 +2,45 @@
 
 ## Erststart
 
+**Vor dem allerersten Start:** existieren unter `apps/license-api/prisma/migrations/`
+noch keine Migrationsdateien (z. B. nach Schemaaenderungen an `schema.prisma`,
+die noch nie ueber `prisma migrate dev` in echte SQL-Dateien uebersetzt
+wurden), scheitert der Bootstrap-Schritt: die Tabellen existieren nicht in
+der Datenbank, `bootstrap.ts` bricht mit "P2021: The table ... does not
+exist" ab.
+
+**`docker compose run --rm ... prisma migrate dev` funktioniert dafuer nicht
+zuverlaessig:** `--rm` loescht den Container sofort nach dem Befehl wieder -
+alle darin neu erzeugten Migrationsdateien liegen nur im Container, nie im
+echten Projektordner, und sind mit dem Container weg. Ausserdem kann
+`migrate dev` interaktive Rueckfragen stellen, die in einem nicht-
+interaktiven `run`-Aufruf ins Leere laufen.
+
+Fuer den Erststart auf einer leeren Datenbank stattdessen `prisma db push`:
+das gleicht das Schema direkt mit der Datenbank ab, ganz ohne
+Migrationsdateien und ohne Rueckfragen auf einer leeren Datenbank.
+
+    docker compose down
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d postgres redis
+    # warten bis postgres "healthy" ist: docker compose ps
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm license-api npx prisma db push --accept-data-loss
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+`docker compose run --rm` startet einen einmaligen Container mit
+selbstgewaehltem Befehl statt des normalen Startbefehls - Postgres und Redis
+muessen dafuer schon laufen (deren Healthchecks haengen nicht an
+license-api), aber der crash-loopende license-api-Dienst selbst muss dafuer
+nicht laufen.
+
+**Fuer spaetere Schemaaenderungen** (nicht mehr auf einer leeren Datenbank)
+sind echte Migrationsdateien der sauberere Weg, weil sie nachvollziehbar
+bleiben und sich versionieren lassen. Dafuer `prisma migrate dev` lokal auf
+einem Rechner mit direktem Datenbankzugriff ausfuehren (nicht in einem
+`--rm`-Container, damit die erzeugten Dateien tatsaechlich im Projektordner
+landen), die entstandenen Dateien committen, und ab dann uebernimmt der
+normale Startbefehl (`migrate deploy`) das automatische Anwenden bei jedem
+weiteren Deploy.
+
     cp .env.example .env
     # alle Platzhalter ersetzen, Zufallswerte: openssl rand -base64 48
     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
