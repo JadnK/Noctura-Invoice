@@ -38,6 +38,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps  /app/node_modules ./node_modules
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+# Beim Bauen (schreibbares Dateisystem) laedt "npx prisma generate" die
+# Engine-Binaerdateien nach node_modules/@prisma/engines herunter. Zur
+# Laufzeit ist der Container read-only (docker-compose.yml); ohne diese
+# Zeile fehlten die Engines dort, und "prisma migrate deploy" versuchte sie
+# beim Containerstart nachzuladen - was auf einem read-only-Dateisystem
+# fehlschlaegt: "Can't write to /app/node_modules/@prisma/engines".
+COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY src ./src
 COPY scripts ./scripts
 COPY prisma ./prisma
