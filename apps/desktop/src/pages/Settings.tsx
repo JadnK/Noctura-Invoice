@@ -22,7 +22,9 @@ export function Settings() {
   const [vatId, setVatId] = useState('');
   const [scheme, setScheme] = useState('standard');
   const [pattern, setPattern] = useState('RE-{YYYY}-{COUNTER}');
-  const [smtp, setSmtp] = useState({ host: '', port: 587, security: 'starttls' as const, username: '', senderEmail: '' });
+  const [smtp, setSmtp] = useState<{ host: string; port: number; security: 'tls' | 'starttls' | 'none'; username: string; senderEmail: string }>(
+    { host: '', port: 587, security: 'starttls', username: '', senderEmail: '' },
+  );
 
   const ibanResult = iban ? validateIban(iban) : null;
   const vatResult = vatId ? validateVatId(vatId) : null;
