@@ -57,7 +57,11 @@ services:
     volumes:
       - license-secrets:/data/secrets
     ports:
-      - "127.0.0.1:3000:3000"
+      # Nur die linke (Host-)Seite ist der belegte Port 3000 auf dem Server -
+      # intern bleibt der Container bei 3000, das betrifft den Host nicht und
+      # der Reverse Proxy spricht ohnehin ueber den internen Docker-Namen
+      # license-api:3000, nicht ueber diesen Host-Port.
+      - "127.0.0.1:4219:3000"
     security_opt: ["no-new-privileges:true"]
     read_only: true
     tmpfs: ["/tmp"]
