@@ -5,11 +5,37 @@ set -euo pipefail
 DEST="$(cd "$(dirname "$0")/.." && pwd)/src-tauri/fonts"
 mkdir -p "$DEST"
 
+# Eine Schriftdatei ist nie kleiner als ein paar KB. Kommt stattdessen eine
+# Fehlerseite zurueck, faellt das hier auf statt still eine kaputte Datei
+# abzulegen, die erst beim Kompilieren als raetselhafter Fehler auftaucht.
+MIN_BYTES=2048
+
 fetch() {
-  local url="$1" name="$2"
-  if [ -f "$DEST/$name" ]; then echo "vorhanden: $name"; return; fi
+  local url="$1" name="$2" target="$DEST/$name"
+
+  if [ -f "$target" ] && [ "$(wc -c < "$target")" -ge "$MIN_BYTES" ]; then
+    echo "vorhanden: $name"
+    return
+  fi
+
   echo "lade: $name"
-  curl -fsSL "$url" -o "$DEST/$name"
+  if ! curl -fsSL --connect-timeout 10 "$url" -o "$target"; then
+    rm -f "$target"
+    echo ""
+    echo "  Download fehlgeschlagen: $name" >&2
+    echo "  Moegliche Ursachen: kein Netzzugriff auf GitHub, oder die hinterlegte" >&2
+    echo "  URL stimmt nicht mehr. Manueller Weg: siehe" >&2
+    echo "  apps/desktop/src-tauri/fonts/README.md, Abschnitt 'Manuell besorgen'." >&2
+    echo "" >&2
+    exit 1
+  fi
+
+  if [ "$(wc -c < "$target")" -lt "$MIN_BYTES" ]; then
+    rm -f "$target"
+    echo "Antwort fuer $name ist zu klein fuer eine echte Schriftdatei (vermutlich eine Fehlerseite)." >&2
+    echo "URL pruefen oder manuell besorgen, siehe fonts/README.md." >&2
+    exit 1
+  fi
 }
 
 INTER=https://github.com/rsms/inter/raw/v4.0/docs/font-files
