@@ -18,6 +18,18 @@ New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 # Fehler auftaucht.
 $MinBytes = 2048
 
+function Write-FontDownloadError {
+    param([string]$Name, [string]$Detail)
+    Write-Host ""
+    Write-Host "  Download fehlgeschlagen: $Name" -ForegroundColor Yellow
+    Write-Host "  $Detail"
+    Write-Host "  Test zur Eingrenzung: Test-NetConnection github.com -Port 443"
+    Write-Host "  Steht dort TcpTestSucceeded = False, blockiert das Firmennetz GitHub"
+    Write-Host "  grundsaetzlich - dann hilft nur der manuelle Weg:"
+    Write-Host "  apps\desktop\src-tauri\fonts\README.md, Abschnitt 'Manuell besorgen'."
+    Write-Host ""
+}
+
 function Get-FontFile {
     param([string]$Url, [string]$Name)
     $Target = Join-Path $Dest $Name
@@ -28,18 +40,35 @@ function Get-FontFile {
     }
 
     Write-Host "lade: $Name"
+
+    # Erster Versuch: direkte Verbindung.
     try {
         Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing -TimeoutSec 30
     } catch {
         Remove-Item -Path $Target -ErrorAction SilentlyContinue
-        Write-Host ""
-        Write-Host "  Download fehlgeschlagen: $Name" -ForegroundColor Yellow
-        Write-Host "  $($_.Exception.Message)"
-        Write-Host "  Moegliche Ursachen: Firmennetz/Proxy blockiert den Zugriff auf GitHub,"
-        Write-Host "  oder die hinterlegte URL stimmt nicht mehr. Manueller Weg: siehe"
-        Write-Host "  apps\desktop\src-tauri\fonts\README.md, Abschnitt 'Manuell besorgen'."
-        Write-Host ""
-        throw
+
+        # Zweiter Versuch: den in Windows hinterlegten Systemproxy verwenden.
+        # Invoke-WebRequest in Windows PowerShell 5.1 nutzt ihn nicht immer
+        # automatisch, auch wenn er im Betriebssystem konfiguriert ist - genau
+        # das erzeugt haeufig exakt dieses Bild: "Verbindung unerwartet
+        # getrennt" trotz funktionierendem Internetzugang im Browser.
+        $systemProxy = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy($Url)
+        $usesProxy = $systemProxy -and $systemProxy.AbsoluteUri -ne $Url
+
+        if ($usesProxy) {
+            Write-Host "  direkter Zugriff fehlgeschlagen, versuche es ueber den Systemproxy ($systemProxy)"
+            try {
+                Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing -TimeoutSec 30 `
+                    -Proxy $systemProxy -ProxyUseDefaultCredentials
+            } catch {
+                Remove-Item -Path $Target -ErrorAction SilentlyContinue
+                Write-FontDownloadError -Name $Name -Detail $_.Exception.Message
+                throw
+            }
+        } else {
+            Write-FontDownloadError -Name $Name -Detail $_.Exception.Message
+            throw
+        }
     }
 
     if ((Get-Item $Target).Length -lt $MinBytes) {
