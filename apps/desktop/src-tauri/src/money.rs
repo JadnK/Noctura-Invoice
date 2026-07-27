@@ -55,7 +55,8 @@ pub fn allocate(total_cents: i64, weights: &[i64]) -> Vec<i64> {
         let step = if rest < 0 { -1 } else { 1 };
         let mut i = 0usize;
         while rest != 0 {
-            parts[i % parts.len()] += step;
+            let index = i % parts.len();
+            parts[index] += step;
             rest -= step;
             i += 1;
         }

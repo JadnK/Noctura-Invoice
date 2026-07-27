@@ -85,3 +85,14 @@ impl From<AppError> for ErrorPayloadWrapper {
         ErrorPayloadWrapper(value)
     }
 }
+
+/// `AppError` wandelt `sqlx::Error` bereits per `#[from]` um (siehe oben).
+/// Das reicht aber nicht fuer `?` in Funktionen, die direkt
+/// `Result<_, ErrorPayloadWrapper>` zurueckgeben und dabei selbst eine
+/// Datenbankabfrage ausfuehren, statt ueber `AppError` zu gehen — `?` fuehrt
+/// nur eine einzige, keine verkettete Umwandlung durch. Deshalb hier explizit.
+impl From<sqlx::Error> for ErrorPayloadWrapper {
+    fn from(value: sqlx::Error) -> Self {
+        ErrorPayloadWrapper(AppError::from(value))
+    }
+}

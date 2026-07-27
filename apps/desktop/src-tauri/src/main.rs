@@ -9,8 +9,6 @@ mod audit;
 mod commands;
 mod error;
 
-use tauri::Manager;
-
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
