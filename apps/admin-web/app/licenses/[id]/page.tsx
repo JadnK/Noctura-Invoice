@@ -20,7 +20,6 @@ interface CompanyUser {
   createdAt: string;
   lastLoginAt: string | null;
 }
-
 interface LicenseDetail {
   id: string;
   keyPrefix: string;
@@ -34,7 +33,6 @@ interface LicenseDetail {
   devices: Device[];
   users: CompanyUser[];
 }
-
 const STATUS_COLOR: Record<string, string> = {
   active: 'var(--n-state-paid)',
   trial: 'var(--n-state-sent)',
@@ -43,10 +41,20 @@ const STATUS_COLOR: Record<string, string> = {
   archived: 'var(--n-state-cancelled)',
 };
 
-function csrfHeader(): HeadersInit {
-  return { 'Content-Type': 'application/json', 'X-CSRF-Token': sessionStorage.getItem('csrf') ?? '' };
-}
+async function csrfHeader(): Promise<HeadersInit> {
+  const response = await fetch('/api/v1/admin/session', { credentials: 'same-origin' });
+  if (!response.ok) {
+    throw new Error('Admin-Sitzung ist abgelaufen. Bitte erneut anmelden.');
+  }
 
+  const body = await response.json() as { csrfToken?: string };
+  if (!body.csrfToken) {
+    throw new Error('Sicherheits-Token konnte nicht geladen werden.');
+  }
+
+  sessionStorage.setItem('csrf', body.csrfToken);
+  return { 'Content-Type': 'application/json', 'X-CSRF-Token': body.csrfToken };
+}
 export default function LicenseDetailPage({ params }: { params: { id: string } }) {
   const [license, setLicense] = useState<LicenseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +63,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
   const [showBlockForm, setShowBlockForm] = useState(false);
   const [newExpiry, setNewExpiry] = useState('');
   const [unlimited, setUnlimited] = useState(false);
-
   async function load() {
     const response = await fetch(`/api/v1/admin/licenses/${params.id}`, { credentials: 'same-origin' });
     if (!response.ok) {
@@ -67,7 +74,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
   }
 
   useEffect(() => { void load(); }, [params.id]);
-
   async function runAction(path: string, body?: unknown) {
     setBusy(true);
     setError(null);
@@ -75,7 +81,7 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
       const response = await fetch(`/api/v1/admin/licenses/${params.id}${path}`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: csrfHeader(),
+        headers: await csrfHeader(),
         body: body ? JSON.stringify(body) : undefined,
       });
       if (!response.ok) {
@@ -86,18 +92,18 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
       await load();
       setShowBlockForm(false);
       setBlockReason('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Aktion fehlgeschlagen.');
     } finally {
       setBusy(false);
     }
   }
-
   if (error && !license) {
     return <main className="p-6"><p role="alert" style={{ color: 'var(--n-danger)' }}>{error}</p></main>;
   }
   if (!license) {
     return <main className="p-6"><p className="text-subtle">Wird geladen…</p></main>;
   }
-
   return (
     <main className="mx-auto max-w-3xl p-6">
       <div className="mb-1 flex items-center gap-2">
@@ -115,9 +121,7 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
           {license.status}
         </span>
       </div>
-
       {error && <p role="alert" className="mb-4 rounded border border-border bg-surface p-2 text-sm" style={{ color: 'var(--n-danger)' }}>{error}</p>}
-
       <section className="mb-6 rounded-lg border border-border bg-surface p-4 shadow-elev1">
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <dt className="text-subtle">Tarif</dt><dd>{license.plan}</dd>
@@ -126,7 +130,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
           {license.blockedReason && (<><dt className="text-subtle">Sperrgrund</dt><dd>{license.blockedReason}</dd></>)}
           {license.note && (<><dt className="text-subtle">Notiz</dt><dd>{license.note}</dd></>)}
         </dl>
-
         <div className="mt-4 flex flex-wrap gap-2">
           {license.status === 'blocked' ? (
             <button type="button" disabled={busy} onClick={() => void runAction('/unblock')}
@@ -144,7 +147,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
             Alle Geräte zurücksetzen
           </button>
         </div>
-
         {showBlockForm && (
           <div className="mt-3 flex gap-2">
             <input
@@ -164,7 +166,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
             </button>
           </div>
         )}
-
         <div className="mt-4 border-t border-border pt-4">
           <p className="mb-2 text-sm font-medium">Ablaufdatum ändern</p>
           <div className="flex items-center gap-3">
@@ -191,7 +192,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
           </div>
         </div>
       </section>
-
       <section className="mb-6">
         <h2 className="mb-2 text-sm font-medium">Geräte</h2>
         {license.devices.length === 0 ? (
@@ -221,7 +221,6 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
           </table>
         )}
       </section>
-
       <section>
         <h2 className="mb-2 text-sm font-medium">Firmenkonten</h2>
         {license.users.length === 0 ? (

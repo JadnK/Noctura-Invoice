@@ -9,7 +9,6 @@ import { adminLoginSchema, blockLicenseSchema, createLicenseSchema, extendLicens
 import { generateLicenseKey, hashLicenseKey, keyPrefix, verifyAdminToken } from '../lib/crypto.ts';
 import { PLAN_DEFAULTS } from '../lib/activation.ts';
 import { ApiError } from '../lib/errors.ts';
-
 const SESSION_COOKIE = 'noctura_admin';
 const SESSION_TTL_MINUTES = 60;
 
@@ -19,7 +18,6 @@ function sessionHash(raw: string): string {
 
 export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
   const pepper = process.env.LICENSE_KEY_PEPPER as string;
-
   async function requireSession(request: FastifyRequest): Promise<string> {
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) throw new ApiError('AUTH_REQUIRED', 401);
@@ -33,16 +31,13 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     }
     return session.id;
   }
-
   app.post('/session', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
     const parsed = adminLoginSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
-
     const setting = await app.prisma.serverSetting.findUnique({ where: { key: 'admin_token' } });
     if (!setting) throw new ApiError('AUTH_INVALID', 401);
     const stored = setting.valueJson as { salt: string; hash: string };
     if (!verifyAdminToken(parsed.data.token, stored)) throw new ApiError('AUTH_INVALID', 401);
-
     const raw = randomBytes(32).toString('base64url');
     const csrfToken = randomBytes(24).toString('base64url');
     await app.prisma.adminSession.create({
@@ -52,7 +47,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
         expiresAt: new Date(Date.now() + SESSION_TTL_MINUTES * 60_000),
       },
     });
-
     return reply
       .setCookie(SESSION_COOKIE, raw, {
         httpOnly: true, secure: true, sameSite: 'strict', path: '/',
@@ -60,13 +54,24 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       })
       .send({ csrfToken, expiresInMinutes: SESSION_TTL_MINUTES });
   });
+  app.get('/session', async (request, reply) => {
+    const id = await requireSession(request);
+    const session = await app.prisma.adminSession.findUnique({
+      where: { id },
+      select: { csrfToken: true, expiresAt: true },
+    });
+    if (!session) throw new ApiError('AUTH_REQUIRED', 401);
 
+    return reply.send({
+      csrfToken: session.csrfToken,
+      expiresAt: session.expiresAt.toISOString(),
+    });
+  });
   app.delete('/session', async (request, reply) => {
     const id = await requireSession(request);
     await app.prisma.adminSession.update({ where: { id }, data: { revokedAt: new Date() } });
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).send({ ok: true });
   });
-
   app.get('/licenses', async (request, reply) => {
     await requireSession(request);
     const licenses = await app.prisma.license.findMany({
@@ -76,7 +81,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     });
     return reply.send({ licenses });
   });
-
   app.get('/licenses/:id', async (request, reply) => {
     await requireSession(request);
     const { id } = request.params as { id: string };
@@ -95,14 +99,12 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     if (!license) throw new ApiError('LIC_NOT_FOUND', 404);
     return reply.send({ license });
   });
-
   app.post('/licenses', async (request, reply) => {
     await requireSession(request);
     const parsed = createLicenseSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
     const input = parsed.data;
     const defaults = PLAN_DEFAULTS[input.plan];
-
     // Der Klartextschluessel existiert genau in dieser Antwort. Danach nur noch Hash und Praefix.
     const key = generateLicenseKey();
     const owner = await app.prisma.licenseOwner.upsert({
@@ -110,7 +112,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       create: { email: input.ownerEmail, name: input.ownerName },
       update: { name: input.ownerName },
     });
-
     const license = await app.prisma.license.create({
       data: {
         keyHash: hashLicenseKey(key, pepper),
@@ -125,7 +126,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
         features: { create: (input.features ?? defaults.features).map((code) => ({ featureCode: code })) },
       },
     });
-
     return reply.status(201).send({ license, key });
   });
 
@@ -138,7 +138,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       where: { id },
       data: { status: 'blocked', blockedReason: parsed.data.reason },
     });
-
     // Alle Firmenkonten dieser Lizenz sofort ausloggen. Ohne das koennten
     // bereits angemeldete Personen mit ihrem noch gueltigen Sitzungs-Token
     // weiterarbeiten, obwohl die Lizenz gerade gesperrt wurde - die Sperre
@@ -148,7 +147,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       where: { revokedAt: null, user: { licenseId: id } },
       data: { revokedAt: new Date() },
     });
-
     return reply.send({ license });
   });
 
@@ -159,7 +157,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       license: await app.prisma.license.update({ where: { id }, data: { status: 'active', blockedReason: null } }),
     });
   });
-
   app.post('/licenses/:id/extend', async (request, reply) => {
     await requireSession(request);
     const parsed = extendLicenseSchema.safeParse(request.body);
@@ -172,7 +169,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       }),
     });
   });
-
   app.post('/licenses/:id/reset-devices', async (request, reply) => {
     await requireSession(request);
     const { id } = request.params as { id: string };
@@ -182,7 +178,6 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     });
     return reply.send({ deactivated: result.count });
   });
-
   app.get('/stats', async (request, reply) => {
     await requireSession(request);
     const [total, active, expired, blocked, trial, devices] = await Promise.all([

@@ -6,9 +6,8 @@ import { ApiError } from '../lib/api';
 type GateState =
   | { step: 'loading' }
   | { step: 'license' }
-  | { step: 'account' }
+  | { step: 'account'; licenseKey: string }
   | { step: 'ready'; session: CompanySession };
-
 /**
  * Sperrbildschirm vor der eigentlichen Anwendung.
  *
@@ -27,14 +26,14 @@ type GateState =
  */
 export function LicenseGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GateState>({ step: 'loading' });
-
   async function check() {
-    const [license, session] = await Promise.all([
+    const [license, session, storedKey] = await Promise.all([
       api.licenseStatus().catch(() => null),
       api.companySessionStatus().catch(() => null),
+      api.storedLicenseKey().catch(() => null),
     ]);
 
-    if (!license || license.status === 'none') {
+    if (!license || license.status === 'none' || license.status === 'unlicensed' || !storedKey) {
       setState({ step: 'license' });
       return;
     }
@@ -42,11 +41,10 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
       setState({ step: 'ready', session });
       return;
     }
-    setState({ step: 'account' });
+    setState({ step: 'account', licenseKey: storedKey });
   }
 
   useEffect(() => { void check(); }, []);
-
   if (state.step === 'loading') {
     return (
       <div className="flex h-full items-center justify-center bg-canvas text-subtle">
@@ -60,17 +58,20 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }
 
   if (state.step === 'account') {
-    return <AccountScreen onReady={(session) => setState({ step: 'ready', session })} />;
+    return (
+      <AccountScreen
+        licenseKey={state.licenseKey}
+        onReady={(session) => setState({ step: 'ready', session })}
+      />
+    );
   }
 
   return <>{children}</>;
 }
-
 function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   async function activate() {
     setBusy(true);
     setError(null);
@@ -87,7 +88,6 @@ function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
       setBusy(false);
     }
   }
-
   return (
     <div className="flex h-full items-center justify-center bg-canvas p-6">
       <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-elev2">
@@ -98,7 +98,6 @@ function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
         <p className="mt-1 text-xs text-subtle">
           Nur einmalig nötig — danach merkt sich das Gerät den Schlüssel für Anmeldungen.
         </p>
-
         <label className="mt-4 block">
           <span className="mb-1 block text-sm">Lizenzschlüssel</span>
           <input
@@ -110,7 +109,6 @@ function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
             className="w-full rounded border border-border bg-input px-3 py-2 font-mono text-sm"
           />
         </label>
-
         {error && (
           <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--n-danger)' }}>{error}</p>
         )}
@@ -127,31 +125,29 @@ function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
     </div>
   );
 }
-
 /**
  * Anmeldung und Firmeneinrichtung. Der Lizenzschlüssel selbst kommt hier
  * nirgends mehr in ein Eingabefeld — er wurde bereits bei der Aktivierung
  * abgefragt und wird im Hintergrund automatisch mitgeschickt. Der normale,
  * taegliche Anmeldevorgang braucht nur E-Mail und Passwort.
  */
-function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void }) {
+function AccountScreen({
+  licenseKey,
+  onReady,
+}: {
+  licenseKey: string;
+  onReady: (session: CompanySession) => void;
+}) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [licenseKey, setLicenseKey] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void api.storedLicenseKey().then(setLicenseKey).catch(() => setLicenseKey(null));
-  }, []);
-
-  const canSubmit = !!licenseKey && email.trim() !== '' && password.length >= 10
+  const canSubmit = email.trim() !== '' && password.length >= 10
     && (mode === 'login' || displayName.trim() !== '');
-
   async function submit() {
-    if (!licenseKey) return;
     setBusy(true);
     setError(null);
     try {
@@ -165,15 +161,6 @@ function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void
       setBusy(false);
     }
   }
-
-  if (licenseKey === null) {
-    return (
-      <div className="flex h-full items-center justify-center bg-canvas text-subtle">
-        <p className="text-sm">Wird geprüft…</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full items-center justify-center bg-canvas p-6">
       <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-elev2">
@@ -185,7 +172,6 @@ function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void
             ? 'Mit Ihrem persönlichen Konto anmelden.'
             : 'Das erste Konto dieser Lizenz wird automatisch zum Administrator.'}
         </p>
-
         <div className="mt-4 space-y-3">
           {mode === 'register' && (
             <label className="block">
@@ -209,7 +195,6 @@ function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void
                    className="w-full rounded border border-border bg-input px-3 py-2 text-sm" />
           </label>
         </div>
-
         {error && <p role="alert" className="mt-3 text-sm" style={{ color: 'var(--n-danger)' }}>{error}</p>}
 
         <button
@@ -220,7 +205,6 @@ function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void
         >
           {busy ? 'Wird geprüft…' : mode === 'login' ? 'Anmelden' : 'Firma einrichten'}
         </button>
-
         <button
           type="button"
           onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(null); }}
