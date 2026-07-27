@@ -24,8 +24,14 @@ export function AppShell({
         className="flex flex-col border-r border-border bg-sidebar transition-[width] duration-150"
         style={{ width: collapsed ? 'var(--n-sidebar-width-collapsed)' : 'var(--n-sidebar-width)' }}
       >
-        <div className="flex h-12 items-center gap-2 px-3">
-          <span aria-hidden className="h-2 w-2 rounded-full bg-primary" />
+        <div className="flex h-12 items-center gap-2.5 px-3">
+          <span
+            aria-hidden
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold"
+            style={{ background: 'var(--n-canvas)', border: '1.5px solid var(--n-primary)' }}
+          >
+            N
+          </span>
           {!collapsed && <span className="text-sm font-semibold tracking-tight">Noctura</span>}
         </div>
 
@@ -48,9 +54,10 @@ export function AppShell({
                       className={[
                         'w-full rounded px-2 py-1.5 text-left text-sm transition-colors',
                         active === item.id
-                          ? 'bg-primary-soft text-text'
+                          ? 'n-state-rail bg-primary-soft text-text'
                           : 'text-muted hover:bg-surface hover:text-text',
                       ].join(' ')}
+                      style={active === item.id ? { ['--rail' as string]: 'var(--n-primary)' } : undefined}
                     >
                       {collapsed ? item.label.slice(0, 2) : item.label}
                     </button>
