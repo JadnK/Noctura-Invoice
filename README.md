@@ -90,6 +90,13 @@ Netzwerk und ohne Datenbank lauffähig:
     npm install
     npm test
 
+**Hinweis zu `package-lock.json`:** Dieses Repository wurde ohne Internetzugang
+zusammengestellt, deshalb fehlt eine eingecheckte Lock-Datei. Nach dem ersten
+`npm install` bei dir entsteht `package-lock.json` automatisch — bitte
+einchecken. Danach kann `npm run typecheck` `npm ci` statt `npm install`
+verwenden und der CI-Job `javascript` in `.github/workflows/ci.yml` kann wieder
+mit `cache: 'npm'` laufen (im Kommentar dort markiert).
+
 Das funktioniert auch ohne die zurückgehaltenen Bestandteile: die
 Geschäftslogik ist bewusst frei von I/O.
 
