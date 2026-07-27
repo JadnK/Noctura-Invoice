@@ -12,7 +12,8 @@
     "exactOptionalPropertyTypes": false,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "lib": ["ES2023"]
+    "lib": ["ES2023"],
+    "types": ["node"]
   },
   "include": ["src", "tests", "scripts", "prisma"]
 }

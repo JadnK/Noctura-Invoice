@@ -10,12 +10,11 @@ jobs:
   javascript:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      # Kein "cache: npm", solange kein package-lock.json im Repository liegt.
-      # Sobald eines eingecheckt ist (siehe README, Abschnitt "Bauen"), hier
-      # "cache: 'npm'" wieder ergaenzen und auf "npm ci" unten umstellen.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
       - run: npm install
       - run: npm run typecheck
       - name: Tests aller Pakete
@@ -29,29 +28,25 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-        with: { components: 'clippy, rustfmt' }
+        with:
+          components: clippy, rustfmt
       - name: Systemabhaengigkeiten fuer Tauri
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - name: Formatierung pruefen (ohne Abhaengigkeitsaufloesung)
-        # "cargo fmt --check" ruft intern "cargo metadata" auf und loest dabei
-        # den gesamten Abhaengigkeitsbaum auf. Eine einzelne unklare Version in
-        # der Cargo.toml wuerde dann schon die reine Formatpruefung zum
-        # Absturz bringen. rustfmt direkt auf die Dateien angewendet braucht
-        # keine Aufloesung und prueft trotzdem exakt dasselbe.
-        run: |
-          find apps/desktop/src-tauri/src -name '*.rs' -print0             | xargs -0 rustfmt --check --edition 2021
-      - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Rust-Dateien normalisieren
+        run: cargo fmt --all --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Clippy
+        run: cargo clippy --all-targets --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Rust-Tests
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # Ein Release darf nicht mit dem Platzhalter-Signaturschluessel gebaut werden.
+      - uses: actions/checkout@v5
       - name: Platzhalter im Signaturschluessel pruefen
         run: |
           if grep -q "PLATZHALTER" apps/desktop/src-tauri/keys/license-signing.pub; then
