@@ -12,7 +12,12 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
+    "@noctura/data-io": "*",
+    "@noctura/doc-render": "*",
+    "@noctura/domain": "*",
     "@noctura/invoice-core": "*",
+    "@noctura/license-client": "*",
+    "@noctura/mail": "*",
     "@noctura/ui": "*",
     "@tanstack/react-query": "^5.59.0",
     "@tauri-apps/api": "^2.0.0",

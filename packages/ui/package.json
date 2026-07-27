@@ -1,0 +1,8 @@
+{
+  "name": "@noctura/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dark-Mode-Designsystem: CSS-Tokens und Tailwind-Preset. Wird ueber Dateipfade eingebunden (siehe README), nicht ueber ein Haupt-Modul.",
+  "files": ["src"]
+}
