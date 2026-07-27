@@ -138,6 +138,17 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       where: { id },
       data: { status: 'blocked', blockedReason: parsed.data.reason },
     });
+
+    // Alle Firmenkonten dieser Lizenz sofort ausloggen. Ohne das koennten
+    // bereits angemeldete Personen mit ihrem noch gueltigen Sitzungs-Token
+    // weiterarbeiten, obwohl die Lizenz gerade gesperrt wurde - die Sperre
+    // waere dann bis zum naechsten eigenstaendigen Ablauf der Sitzung
+    // wirkungslos.
+    await app.prisma.licenseUserSession.updateMany({
+      where: { revokedAt: null, user: { licenseId: id } },
+      data: { revokedAt: new Date() },
+    });
+
     return reply.send({ license });
   });
 

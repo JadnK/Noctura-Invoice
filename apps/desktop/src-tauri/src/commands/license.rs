@@ -190,6 +190,11 @@ pub async fn activate_license(key: String) -> Result<LicenseState, ErrorPayloadW
         return Err(AppError::License("Das Token gehört zu einem anderen Gerät.".into()).into());
     }
     store(&response.payload, &response.signature, &token).await?;
+    sqlx::query("UPDATE license_cache SET raw_key = ?1 WHERE id = 1")
+        .bind(key.trim())
+        .execute(db::pool())
+        .await
+        .map_err(AppError::from)?;
 
     Ok(LicenseState {
         status: "valid".into(),
@@ -245,6 +250,21 @@ pub async fn license_heartbeat() -> Result<LicenseState, ErrorPayloadWrapper> {
 }
 
 #[tauri::command]
+/// Der lokal gemerkte Klartextschluessel, fuer Anmeldung/Registrierung eines
+/// Firmenkontos - damit die Oberflaeche ihn nicht nach jeder Aktivierung
+/// erneut vom Menschen abfragen muss. Kein zusaetzliches Geheimnis: das
+/// Geraet hat mit der erfolgreichen Aktivierung ohnehin bereits bewiesen,
+/// dass es diesen Schluessel kennt.
+#[tauri::command]
+pub async fn stored_license_key() -> Option<String> {
+    sqlx::query_scalar::<_, Option<String>>("SELECT raw_key FROM license_cache WHERE id = 1")
+        .fetch_optional(db::pool())
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+}
+
 pub async fn license_status() -> LicenseState {
     let pool = db::pool();
     let row = sqlx::query_as::<_, (String, Option<String>, Option<String>, String, Option<String>)>(

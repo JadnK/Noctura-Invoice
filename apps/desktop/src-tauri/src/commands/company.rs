@@ -160,19 +160,35 @@ pub async fn login_company_account(
     })
 }
 
-/// Ob gerade jemand angemeldet ist. Kein Serveraufruf - liest nur den
-/// lokalen Stand. Ein abgelaufenes Server-Token faellt erst beim naechsten
-/// tatsaechlichen Aufruf auf (401), nicht hier.
+/// Ob gerade jemand angemeldet ist. Prueft dafuer aktiv beim Server nach
+/// (GET /auth/me), statt dem lokalen Stand blind zu vertrauen - sonst
+/// wuerde eine serverseitig widerrufene Sitzung (z. B. weil ein Admin die
+/// Lizenz gerade gesperrt hat) erst auffallen, wenn zufaellig irgendein
+/// anderer Aufruf fehlschlaegt. Ist der Server nicht erreichbar, bleibt die
+/// lokale Sitzung bestehen - eine fehlende Internetverbindung soll niemanden
+/// aussperren, nur eine tatsaechliche serverseitige Ablehnung.
 #[tauri::command]
 pub async fn company_session_status() -> Option<CompanySession> {
-    let row = sqlx::query("SELECT user_id, license_id, email, display_name, role FROM company_session WHERE id = 1")
+    let row = sqlx::query("SELECT user_id, license_id, email, display_name, role, token FROM company_session WHERE id = 1")
         .fetch_optional(db::pool())
         .await
         .ok()??;
-    Some(CompanySession {
+
+    let token: String = row.get("token");
+    let session = CompanySession {
         user_id: row.get("user_id"), license_id: row.get("license_id"),
         email: row.get("email"), display_name: row.get("display_name"), role: row.get("role"),
-    })
+    };
+
+    let Ok(http) = client() else { return Some(session) };
+    match http.get(format!("{BASE_URL}/auth/me")).bearer_auth(&token).send().await {
+        Ok(response) if response.status() == reqwest::StatusCode::UNAUTHORIZED => {
+            // Server sagt ausdruecklich "abgelehnt" - lokal ebenfalls abmelden.
+            let _ = sqlx::query("DELETE FROM company_session WHERE id = 1").execute(db::pool()).await;
+            None
+        }
+        _ => Some(session),
+    }
 }
 
 #[tauri::command]

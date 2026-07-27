@@ -1,53 +1,51 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { CompanySession, LicenseState } from '../lib/api';
+import type { CompanySession } from '../lib/api';
 import { ApiError } from '../lib/api';
 
 type GateState =
   | { step: 'loading' }
   | { step: 'license' }
-  | { step: 'account'; licenseKey: string }
+  | { step: 'account' }
   | { step: 'ready'; session: CompanySession };
 
 /**
  * Sperrbildschirm vor der eigentlichen Anwendung.
  *
  * Zwei Voraussetzungen, in dieser Reihenfolge: eine aktivierte Lizenz, dann
- * ein angemeldetes Firmenkonto. Der erste Nutzer, der sich fuer eine Lizenz
- * registriert, wird automatisch zum Administrator dieser Firma (siehe
- * apps/license-api/src/lib/license-users.ts) - jede weitere Person meldet
- * sich mit einem vom Administrator angelegten Konto an.
+ * ein angemeldetes Firmenkonto. Der Lizenzschlüssel wird dabei genau einmal
+ * abgefragt — bei der Aktivierung. Für Anmeldung und auch für die
+ * Firmenregistrierung merkt sich das Gerät den Schlüssel selbst (siehe
+ * stored_license_key in commands/license.rs): niemand soll ihn bei jeder
+ * Anmeldung erneut abtippen müssen, nur weil die Sitzung abgelaufen ist.
  *
- * Bewusst anders als der spaetere eingeschraenkte Modus (siehe
- * packages/license-client): dieser Bildschirm ist die erstmalige Huerde vor
- * jeglicher Nutzung, nicht die spaetere Kulanz bei abgelaufener
- * Online-Pruefung. Einmal durchlaufen, greift danach die gewohnte
+ * Bewusst getrennt vom späteren eingeschränkten Modus (siehe
+ * packages/license-client): dieser Bildschirm ist die erstmalige Hürde vor
+ * jeglicher Nutzung, nicht die spätere Kulanz bei abgelaufener
+ * Online-Prüfung. Einmal durchlaufen, greift danach die gewohnte
  * Offline-Toleranz.
  */
 export function LicenseGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GateState>({ step: 'loading' });
 
-  useEffect(() => {
-    void (async () => {
-      const [license, session] = await Promise.all([
-        api.licenseStatus().catch(() => null),
-        api.companySessionStatus().catch(() => null),
-      ]);
+  async function check() {
+    const [license, session] = await Promise.all([
+      api.licenseStatus().catch(() => null),
+      api.companySessionStatus().catch(() => null),
+    ]);
 
-      if (!license || license.status === 'none') {
-        setState({ step: 'license' });
-        return;
-      }
-      if (session) {
-        setState({ step: 'ready', session });
-        return;
-      }
-      // Lizenz ist aktiviert, aber kein lokales Firmenkonto bekannt -
-      // Schluessel wird fuer den Registrierungs-/Login-Schritt gebraucht,
-      // die Rust-Seite haelt ihn nicht als Klartext vor.
-      setState({ step: 'account', licenseKey: '' });
-    })();
-  }, []);
+    if (!license || license.status === 'none') {
+      setState({ step: 'license' });
+      return;
+    }
+    if (session) {
+      setState({ step: 'ready', session });
+      return;
+    }
+    setState({ step: 'account' });
+  }
+
+  useEffect(() => { void check(); }, []);
 
   if (state.step === 'loading') {
     return (
@@ -58,26 +56,17 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }
 
   if (state.step === 'license') {
-    return (
-      <LicenseActivationScreen
-        onActivated={(licenseKey) => setState({ step: 'account', licenseKey })}
-      />
-    );
+    return <LicenseActivationScreen onActivated={() => void check()} />;
   }
 
   if (state.step === 'account') {
-    return (
-      <AccountScreen
-        licenseKey={state.licenseKey}
-        onReady={(session) => setState({ step: 'ready', session })}
-      />
-    );
+    return <AccountScreen onReady={(session) => setState({ step: 'ready', session })} />;
   }
 
   return <>{children}</>;
 }
 
-function LicenseActivationScreen({ onActivated }: { onActivated: (licenseKey: string) => void }) {
+function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +80,7 @@ function LicenseActivationScreen({ onActivated }: { onActivated: (licenseKey: st
         setError('Die Lizenz konnte nicht bestätigt werden.');
         return;
       }
-      onActivated(key.trim());
+      onActivated();
     } catch (err) {
       setError(err instanceof ApiError ? err.info.title : 'Lizenzserver nicht erreichbar.');
     } finally {
@@ -104,7 +93,10 @@ function LicenseActivationScreen({ onActivated }: { onActivated: (licenseKey: st
       <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 shadow-elev2">
         <h1 className="text-lg font-semibold tracking-tight">Noctura Invoice</h1>
         <p className="mt-1 text-sm text-muted">
-          Bitte den Lizenzschlüssel eingeben, um die Anwendung einzurichten.
+          Bitte den Lizenzschlüssel eingeben, um die Anwendung auf diesem Gerät einzurichten.
+        </p>
+        <p className="mt-1 text-xs text-subtle">
+          Nur einmalig nötig — danach merkt sich das Gerät den Schlüssel für Anmeldungen.
         </p>
 
         <label className="mt-4 block">
@@ -136,31 +128,50 @@ function LicenseActivationScreen({ onActivated }: { onActivated: (licenseKey: st
   );
 }
 
-function AccountScreen({ licenseKey, onReady }: { licenseKey: string; onReady: (session: CompanySession) => void }) {
+/**
+ * Anmeldung und Firmeneinrichtung. Der Lizenzschlüssel selbst kommt hier
+ * nirgends mehr in ein Eingabefeld — er wurde bereits bei der Aktivierung
+ * abgefragt und wird im Hintergrund automatisch mitgeschickt. Der normale,
+ * taegliche Anmeldevorgang braucht nur E-Mail und Passwort.
+ */
+function AccountScreen({ onReady }: { onReady: (session: CompanySession) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [key, setKey] = useState(licenseKey);
+  const [licenseKey, setLicenseKey] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = key.trim().length >= 10 && email.trim() !== '' && password.length >= 10
+  useEffect(() => {
+    void api.storedLicenseKey().then(setLicenseKey).catch(() => setLicenseKey(null));
+  }, []);
+
+  const canSubmit = !!licenseKey && email.trim() !== '' && password.length >= 10
     && (mode === 'login' || displayName.trim() !== '');
 
   async function submit() {
+    if (!licenseKey) return;
     setBusy(true);
     setError(null);
     try {
       const session = mode === 'login'
-        ? await api.loginCompanyAccount(key, email, password)
-        : await api.registerCompanyAccount(key, email, password, displayName);
+        ? await api.loginCompanyAccount(licenseKey, email, password)
+        : await api.registerCompanyAccount(licenseKey, email, password, displayName);
       onReady(session);
     } catch (err) {
       setError(err instanceof ApiError ? err.info.title : 'Lizenzserver nicht erreichbar.');
     } finally {
       setBusy(false);
     }
+  }
+
+  if (licenseKey === null) {
+    return (
+      <div className="flex h-full items-center justify-center bg-canvas text-subtle">
+        <p className="text-sm">Wird geprüft…</p>
+      </div>
+    );
   }
 
   return (
@@ -172,17 +183,10 @@ function AccountScreen({ licenseKey, onReady }: { licenseKey: string; onReady: (
         <p className="mt-1 text-sm text-muted">
           {mode === 'login'
             ? 'Mit Ihrem persönlichen Konto anmelden.'
-            : 'Das erste Konto einer Lizenz wird automatisch zum Administrator.'}
+            : 'Das erste Konto dieser Lizenz wird automatisch zum Administrator.'}
         </p>
 
         <div className="mt-4 space-y-3">
-          {!licenseKey && (
-            <label className="block">
-              <span className="mb-1 block text-sm">Lizenzschlüssel</span>
-              <input value={key} onChange={(event) => setKey(event.target.value)}
-                     className="w-full rounded border border-border bg-input px-3 py-2 font-mono text-sm" />
-            </label>
-          )}
           {mode === 'register' && (
             <label className="block">
               <span className="mb-1 block text-sm">Name</span>
@@ -194,12 +198,14 @@ function AccountScreen({ licenseKey, onReady }: { licenseKey: string; onReady: (
           <label className="block">
             <span className="mb-1 block text-sm">E-Mail-Adresse</span>
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)}
+                   autoFocus
                    className="w-full rounded border border-border bg-input px-3 py-2 text-sm" />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm">Passwort</span>
             <input type="password" value={password} onChange={(event) => setPassword(event.target.value)}
-                   placeholder="mindestens 10 Zeichen"
+                   placeholder={mode === 'register' ? 'mindestens 10 Zeichen' : undefined}
+                   onKeyDown={(event) => { if (event.key === 'Enter' && canSubmit) void submit(); }}
                    className="w-full rounded border border-border bg-input px-3 py-2 text-sm" />
           </label>
         </div>

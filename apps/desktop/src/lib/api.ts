@@ -27,6 +27,48 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   }
 }
 
+export interface Customer {
+  id: string;
+  number: string;
+  type: string;
+  company: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  vatId: string | null;
+  taxStatus: string;
+  paymentTermsDays: number | null;
+  discountBp: number;
+  archivedAt: string | null;
+}
+
+export interface CustomerDetail extends Customer {
+  street: string | null;
+  houseNo: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string;
+}
+
+export interface CustomerInput {
+  kind: string;
+  company?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  vatId?: string;
+  taxStatus: string;
+  paymentTermsDays?: number;
+  discountBp: number;
+  street?: string;
+  houseNo?: string;
+  postalCode?: string;
+  city?: string;
+  country?: string;
+}
+
 export interface DashboardData {
   revenueMonthCents: number;
   revenueYearCents: number;
@@ -71,9 +113,28 @@ export interface CompanyUserSummary {
   lastLoginAt: string | null;
 }
 
+export interface EmailSettings {
+  provider: string;
+  host: string;
+  port: number;
+  security: 'tls' | 'starttls' | 'none';
+  username: string;
+  password?: string;
+  senderName: string;
+  senderEmail: string;
+  replyTo?: string;
+  bcc?: string;
+  hasPassword: boolean;
+}
+
 export const api = {
   dashboard: () => call<DashboardData>('dashboard_data'),
-  customers: (query?: string) => call<unknown[]>('list_customers', { query, includeArchived: false }),
+  customers: (query?: string, includeArchived = false) =>
+    call<Customer[]>('list_customers', { query: query || undefined, includeArchived }),
+  customer: (id: string) => call<CustomerDetail | null>('get_customer', { id }),
+  createCustomer: (input: CustomerInput) => call<Customer>('create_customer', { input }),
+  updateCustomer: (id: string, input: CustomerInput) => call<Customer>('update_customer', { id, input }),
+  archiveCustomer: (id: string) => call<string>('archive_customer', { id }),
   products: (query?: string) => call<unknown[]>('list_products', { query }),
   calculate: (input: unknown) => call<unknown>('calculate_preview', { input }),
   finalize: (invoiceId: string, input: unknown, expectedGrossCents: number) =>
@@ -82,6 +143,7 @@ export const api = {
 
   licenseStatus: () => call<LicenseState>('license_status'),
   activateLicense: (key: string) => call<LicenseState>('activate_license', { key }),
+  storedLicenseKey: () => call<string | null>('stored_license_key'),
   heartbeat: () => call<LicenseState>('license_heartbeat'),
 
   companySessionStatus: () => call<CompanySession | null>('company_session_status'),
@@ -98,4 +160,9 @@ export const api = {
     call<{ path: string; sizeBytes: number; encrypted: boolean }>('create_backup', { targetDir, password }),
   inspectBackup: (path: string, password?: string) => call<Record<string, unknown>>('inspect_backup', { path, password }),
   restoreBackup: (path: string, password?: string) => call<string>('restore_backup', { path, password }),
+
+  getEmailSettings: () => call<EmailSettings | null>('get_email_settings'),
+  saveEmailSettings: (settings: EmailSettings) => call<void>('save_email_settings', { settings }),
+  testEmailConnection: (host: string, port: number, security: string, username: string, password?: string) =>
+    call<void>('test_email_connection', { host, port, security, username, password }),
 };

@@ -40,6 +40,7 @@ fn main() {
             commands::invoice::finalize_invoice,
             commands::invoice::cancel_invoice,
             commands::license::activate_license,
+            commands::license::stored_license_key,
             commands::license::license_heartbeat,
             commands::license::license_status,
             commands::backup::create_backup,
@@ -51,6 +52,14 @@ fn main() {
             commands::company::logout_company_account,
             commands::company::list_company_users,
             commands::company::create_company_user,
+            commands::customers::list_customers,
+            commands::customers::get_customer,
+            commands::customers::create_customer,
+            commands::customers::update_customer,
+            commands::customers::archive_customer,
+            commands::email_settings::get_email_settings,
+            commands::email_settings::save_email_settings,
+            commands::email_settings::test_email_connection,
         ])
         .run(tauri::generate_context!())
         .expect("Anwendung konnte nicht gestartet werden");

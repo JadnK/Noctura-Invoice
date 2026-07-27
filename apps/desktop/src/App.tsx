@@ -5,7 +5,7 @@ import type { Command } from './components/CommandPalette';
 import { Amount } from './components/Amount';
 import { StatusBadge, stateRailColor } from './components/StatusBadge';
 import { Dashboard } from './pages/Dashboard';
-import { Customers, CustomerForm } from './pages/Customers';
+import { Customers } from './pages/Customers';
 import { InvoiceEditor } from './pages/InvoiceEditor';
 import { TemplateEditor } from './pages/TemplateEditor';
 import { Settings } from './pages/Settings';
@@ -31,11 +31,6 @@ const DEMO_INVOICES: Row[] = [
   { id: '4', number: '—', customer: 'Nordwind Logistik', issued: '2026-07-26', due: '2026-08-09', grossCents: 23_800, state: 'draft' },
 ];
 
-const DEMO_CUSTOMERS = [
-  { id: 'c1', number: 'KD-0042', company: 'Steinbach Elektrotechnik GmbH', lastName: null, email: 'buchhaltung@steinbach.example', city: 'Berlin', openCents: 428_570, archivedAt: null },
-  { id: 'c2', number: 'KD-0043', company: null, lastName: 'Lehmann', email: 'praxis@lehmann.example', city: 'Potsdam', openCents: 89_250, archivedAt: null },
-];
-
 export default function App() {
   const [page, setPage] = useState('dashboard');
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -51,7 +46,7 @@ export default function App() {
       id: `nav.${item.id}`, label: item.label, group: 'Navigation', run: () => navigate(item.id),
     })),
     { id: 'invoice.new', label: 'Neue Rechnung', group: 'Erstellen', run: () => navigate('invoice-new') },
-    { id: 'customer.new', label: 'Neuer Kunde', group: 'Erstellen', run: () => navigate('customer-new') },
+    { id: 'customer.new', label: 'Neuer Kunde', group: 'Erstellen', run: () => navigate('customers') },
     { id: 'template.edit', label: 'Vorlage bearbeiten', group: 'Erstellen', run: () => navigate('template-editor') },
     { id: 'backup.create', label: 'Sicherung erstellen', group: 'Daten', run: () => navigate('settings') },
     { id: 'onboarding', label: 'Einrichtung erneut öffnen', group: 'System', run: () => setOnboarding(true) },
@@ -69,7 +64,7 @@ export default function App() {
       event.preventDefault();
       if (match.id === 'palette') setPaletteOpen((open) => !open);
       if (match.id === 'invoice.new') navigate('invoice-new');
-      if (match.id === 'customer.new') navigate('customer-new');
+      if (match.id === 'customer.new') navigate('customers');
       if (match.id === 'settings') navigate('settings');
       if (match.id === 'help') navigate('help');
     }
@@ -101,9 +96,8 @@ export default function App() {
         {page === 'invoices' && <InvoiceList rows={DEMO_INVOICES} onNew={() => navigate('invoice-new')} />}
         {page === 'invoice-new' && <InvoiceEditor />}
         {page === 'customers' && (
-          <Customers rows={DEMO_CUSTOMERS} onOpen={() => navigate('customers')} onCreate={() => navigate('customer-new')} />
+          <Customers onOpen={() => navigate('customers')} />
         )}
-        {page === 'customer-new' && <CustomerForm onSave={() => navigate('customers')} onCancel={() => navigate('customers')} />}
         {page === 'templates' && <TemplateEditor />}
         {page === 'template-editor' && <TemplateEditor />}
         {page === 'settings' && <Settings />}

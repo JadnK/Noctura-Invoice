@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { validateIban, formatIban, validateVatId, suggestTaxScheme } from '@noctura/domain';
 import { SMTP_PRESETS, SMTP_PROBLEM_TEXT, validateSmtp } from '@noctura/mail';
 import { previewNumbers } from '@noctura/invoice-core';
+import { api } from '../lib/api';
+import type { EmailSettings } from '../lib/api';
+import { ApiError } from '../lib/api';
 
 const TABS = [
   { id: 'company', label: 'Firmendaten' },
@@ -22,9 +25,53 @@ export function Settings() {
   const [vatId, setVatId] = useState('');
   const [scheme, setScheme] = useState('standard');
   const [pattern, setPattern] = useState('RE-{YYYY}-{COUNTER}');
-  const [smtp, setSmtp] = useState<{ host: string; port: number; security: 'tls' | 'starttls' | 'none'; username: string; senderEmail: string }>(
-    { host: '', port: 587, security: 'starttls', username: '', senderEmail: '' },
-  );
+  const [smtp, setSmtp] = useState<{
+    provider: string; host: string; port: number; security: 'tls' | 'starttls' | 'none';
+    username: string; password: string; senderName: string; senderEmail: string;
+    replyTo: string; bcc: string; hasPassword: boolean;
+  }>({
+    provider: 'custom', host: '', port: 587, security: 'starttls', username: '', password: '',
+    senderName: '', senderEmail: '', replyTo: '', bcc: '', hasPassword: false,
+  });
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('loading');
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getEmailSettings()
+      .then((saved) => {
+        if (saved) {
+          setSmtp({
+            provider: saved.provider, host: saved.host, port: saved.port, security: saved.security,
+            username: saved.username, password: '', senderName: saved.senderName,
+            senderEmail: saved.senderEmail, replyTo: saved.replyTo ?? '', bcc: saved.bcc ?? '',
+            hasPassword: saved.hasPassword,
+          });
+        }
+        setEmailStatus('idle');
+      })
+      .catch(() => setEmailStatus('idle'));
+  }, []);
+
+  async function saveEmailSettings() {
+    setEmailStatus('saving');
+    setEmailError(null);
+    try {
+      const payload: EmailSettings = {
+        provider: smtp.provider, host: smtp.host, port: smtp.port, security: smtp.security,
+        username: smtp.username, senderName: smtp.senderName, senderEmail: smtp.senderEmail,
+        replyTo: smtp.replyTo || undefined, bcc: smtp.bcc || undefined,
+        hasPassword: smtp.hasPassword,
+        ...(smtp.password ? { password: smtp.password } : {}),
+      };
+      await api.saveEmailSettings(payload);
+      setSmtp((current) => ({ ...current, password: '', hasPassword: current.hasPassword || current.password !== '' }));
+      setEmailStatus('saved');
+      setTimeout(() => setEmailStatus('idle'), 2000);
+    } catch (err) {
+      setEmailError(err instanceof ApiError ? err.info.title : 'Speichern fehlgeschlagen.');
+      setEmailStatus('error');
+    }
+  }
 
   const ibanResult = iban ? validateIban(iban) : null;
   const vatResult = vatId ? validateVatId(vatId) : null;
@@ -170,25 +217,100 @@ export function Settings() {
             <label className="block">
               <span className="mb-1 block text-sm">Anbieter</span>
               <select
+                value={smtp.provider}
                 onChange={(event) => {
                   const preset = SMTP_PRESETS.find((entry) => entry.id === event.target.value);
-                  if (preset) setSmtp((current) => ({ ...current, host: preset.host, port: preset.port, security: preset.security }));
+                  setSmtp((current) => ({
+                    ...current,
+                    provider: event.target.value,
+                    ...(preset ? { host: preset.host, port: preset.port, security: preset.security } : {}),
+                  }));
                 }}
                 className="rounded border border-border bg-input px-2 py-1.5 text-sm"
               >
                 {SMTP_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
               </select>
+              {SMTP_PRESETS.find((p) => p.id === smtp.provider)?.hint && (
+                <p className="mt-1 text-xs text-subtle">{SMTP_PRESETS.find((p) => p.id === smtp.provider)?.hint}</p>
+              )}
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="mb-1 block text-sm">Server</span>
                 <input value={smtp.host} onChange={(event) => setSmtp({ ...smtp, host: event.target.value })}
-                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
+                       disabled={smtp.provider !== 'custom'}
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm disabled:opacity-60" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-sm">Port</span>
                 <input type="number" value={smtp.port} onChange={(event) => setSmtp({ ...smtp, port: Number(event.target.value) })}
+                       disabled={smtp.provider !== 'custom'}
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm disabled:opacity-60" />
+              </label>
+            </div>
+
+            {smtp.provider === 'custom' && (
+              <label className="block">
+                <span className="mb-1 block text-sm">Verschlüsselung</span>
+                <select
+                  value={smtp.security}
+                  onChange={(event) => setSmtp({ ...smtp, security: event.target.value as typeof smtp.security })}
+                  className="rounded border border-border bg-input px-2 py-1.5 text-sm"
+                >
+                  <option value="tls">TLS (Port 465)</option>
+                  <option value="starttls">STARTTLS (Port 587)</option>
+                  <option value="none">Keine (nur internes Relay im Firmennetz)</option>
+                </select>
+              </label>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm">Benutzername</span>
+                <input value={smtp.username} onChange={(event) => setSmtp({ ...smtp, username: event.target.value })}
+                       autoComplete="off"
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm">
+                  Passwort {smtp.hasPassword && <span className="text-xs text-subtle">(gespeichert)</span>}
+                </span>
+                <input
+                  type="password"
+                  value={smtp.password}
+                  onChange={(event) => setSmtp({ ...smtp, password: event.target.value })}
+                  placeholder={smtp.hasPassword ? '•••••••• (unverändert lassen)' : ''}
+                  autoComplete="new-password"
+                  className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm">Absendername</span>
+                <input value={smtp.senderName} onChange={(event) => setSmtp({ ...smtp, senderName: event.target.value })}
+                       placeholder="Musterfirma GmbH"
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm">Absenderadresse</span>
+                <input type="email" value={smtp.senderEmail} onChange={(event) => setSmtp({ ...smtp, senderEmail: event.target.value })}
+                       placeholder="rechnungen@musterfirma.de"
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm">Antwortadresse <span className="text-subtle">(optional)</span></span>
+                <input type="email" value={smtp.replyTo} onChange={(event) => setSmtp({ ...smtp, replyTo: event.target.value })}
+                       className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm">BCC-Adresse <span className="text-subtle">(optional)</span></span>
+                <input type="email" value={smtp.bcc} onChange={(event) => setSmtp({ ...smtp, bcc: event.target.value })}
                        className="w-full rounded border border-border bg-input px-2 py-1.5 text-sm" />
               </label>
             </div>
@@ -196,13 +318,39 @@ export function Settings() {
             {smtpProblems.map((problem) => (
               <p key={problem} className="text-sm" style={{ color: 'var(--n-warning)' }}>{SMTP_PROBLEM_TEXT[problem]}</p>
             ))}
+            {emailError && (
+              <p role="alert" className="text-sm" style={{ color: 'var(--n-danger)' }}>{emailError}</p>
+            )}
 
             <p className="text-xs text-subtle">
-              Das Passwort wird im Schlüsselbund des Betriebssystems abgelegt, nie in der Datenbank.
+              Das Passwort wird auf diesem Gerät verschlüsselt abgelegt, nicht im Klartext. Es verlässt
+              das Gerät nur beim tatsächlichen Versand über den eingestellten Server.
             </p>
-            <button type="button" className="rounded border border-border px-3 py-1.5 text-sm hover:bg-surface">
-              Verbindung testen
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={emailStatus === 'saving'}
+                onClick={() => void saveEmailSettings()}
+                className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              >
+                {emailStatus === 'saving' ? 'Wird gespeichert…' : 'Speichern'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void api.testEmailConnection(smtp.host, smtp.port, smtp.security, smtp.username, smtp.password || undefined)
+                    .then(() => { setEmailError(null); setEmailStatus('saved'); setTimeout(() => setEmailStatus('idle'), 2000); })
+                    .catch((err) => setEmailError(err instanceof ApiError ? err.info.title : 'Verbindung fehlgeschlagen.'));
+                }}
+                className="rounded border border-border px-3 py-1.5 text-sm hover:bg-surface"
+              >
+                Verbindung testen
+              </button>
+              {emailStatus === 'saved' && (
+                <span className="text-sm" style={{ color: 'var(--n-success)' }}>Erfolgreich.</span>
+              )}
+            </div>
           </>
         )}
 
