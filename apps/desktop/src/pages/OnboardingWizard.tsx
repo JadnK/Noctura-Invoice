@@ -42,7 +42,7 @@ export function OnboardingWizard({ onFinish, onSkip }: { onFinish: () => void; o
       <h1 className="mt-1 text-2xl font-semibold tracking-tight">{step.title}</h1>
       <p className="mt-2 text-muted">{step.hint}</p>
 
-      <div className="mt-6 min-h-48 rounded-lg border border-border bg-surface p-5">
+      <div className="mt-6 min-h-48 rounded-lg border border-border bg-surface p-5 shadow-elev1">
         {/* Formular je Schritt: React Hook Form + Zod, Felder aus docs/data-model.md */}
         <p className="text-sm text-subtle">Formular für „{step.title}“.</p>
       </div>

@@ -61,7 +61,7 @@ export function Customers({ rows, onOpen, onCreate }: {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-elev1">
           <p className="font-medium">{query ? 'Kein Treffer' : 'Noch kein Kunde angelegt'}</p>
           <p className="mt-1 text-sm text-muted">
             {query ? 'Andere Schreibweise versuchen oder Archivierte einblenden.' : 'Legen Sie den ersten Kunden an, um eine Rechnung schreiben zu können.'}

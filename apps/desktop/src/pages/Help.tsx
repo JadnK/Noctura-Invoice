@@ -24,7 +24,7 @@ export function Help() {
         </table>
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-4 text-sm">
+      <section className="rounded-lg border border-border bg-surface p-4 text-sm shadow-elev1">
         <h2 className="font-medium">Wo liegen meine Daten?</h2>
         <p className="mt-1 text-muted">
           Alle Rechnungen, Kunden und Anhänge liegen lokal auf diesem Rechner. Der Lizenzserver

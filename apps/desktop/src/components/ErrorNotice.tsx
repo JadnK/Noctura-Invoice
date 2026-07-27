@@ -9,7 +9,7 @@ export function ErrorNotice({ error, onRetry }: { error: ApiError; onRetry?: () 
   const [open, setOpen] = useState(false);
 
   return (
-    <div role="alert" className="rounded-lg border border-border bg-surface p-4">
+    <div role="alert" className="rounded-lg border border-border bg-surface p-4 shadow-elev1">
       <p className="font-medium" style={{ color: 'var(--n-danger)' }}>{error.info.title}</p>
       <p className="mt-1 text-sm text-muted">{error.info.cause}</p>
       <p className="mt-1 text-sm">{error.info.fix}</p>
