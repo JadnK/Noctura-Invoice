@@ -64,8 +64,8 @@ services:
 
   admin-web:
     build:
-      context: ./apps/admin-web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/admin-web/Dockerfile
     restart: unless-stopped
     depends_on:
       license-api: { condition: service_healthy }
