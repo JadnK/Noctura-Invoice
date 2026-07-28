@@ -20,18 +20,35 @@ export interface ExistingUserSummary {
 
 export type RegisterDecision =
   | { readonly ok: true; readonly role: 'admin' }
-  | { readonly ok: false; readonly code: 'LICENSE_NOT_ACTIVE' | 'ALREADY_HAS_USERS' };
+  | {
+      readonly ok: false;
+      readonly code: 'LICENSE_BLOCKED' | 'LICENSE_EXPIRED' | 'LICENSE_ARCHIVED' | 'ALREADY_HAS_USERS';
+    };
 
 /**
  * Entscheidet, ob eine offene Registrierung (ohne Einladung) erlaubt ist.
- * Nur der allererste Nutzer einer Lizenz darf sich selbst registrieren.
+ * Nur der allererste Nutzer einer Lizenz darf sich selbst registrieren. Der
+ * genaue Ablehnungsgrund (gesperrt/abgelaufen/archiviert) wird einzeln
+ * zurueckgegeben, damit die Firma eine zutreffende Fehlermeldung sieht statt
+ * einer generischen "gesperrt"-Meldung fuer jeden nicht-aktiven Status.
  */
 export function decideRegistration(
   licenseStatus: string,
   existingUserCount: number,
 ): RegisterDecision {
+  if (licenseStatus === 'blocked') {
+    return { ok: false, code: 'LICENSE_BLOCKED' };
+  }
+  if (licenseStatus === 'expired') {
+    return { ok: false, code: 'LICENSE_EXPIRED' };
+  }
+  if (licenseStatus === 'archived') {
+    return { ok: false, code: 'LICENSE_ARCHIVED' };
+  }
   if (licenseStatus !== 'active' && licenseStatus !== 'trial') {
-    return { ok: false, code: 'LICENSE_NOT_ACTIVE' };
+    // Unbekannter Status (sollte durch das Prisma-Enum nicht vorkommen) -
+    // sicherheitshalber wie gesperrt behandeln statt Registrierung zuzulassen.
+    return { ok: false, code: 'LICENSE_BLOCKED' };
   }
   if (existingUserCount > 0) {
     return { ok: false, code: 'ALREADY_HAS_USERS' };

@@ -79,10 +79,16 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       });
       const decision = decideRegistration(license.status, existingCount);
       if (!decision.ok) {
-        throw new ApiError(
-          decision.code === 'LICENSE_NOT_ACTIVE' ? 'LIC_BLOCKED' : 'AUTH_ALREADY_REGISTERED',
-          decision.code === 'LICENSE_NOT_ACTIVE' ? 403 : 409,
-        );
+        // Jeder Ablehnungsgrund bekommt seine eigene, zutreffende Fehlermeldung
+        // statt einer generischen "gesperrt"-Meldung fuer jeden nicht-aktiven Status.
+        const REGISTER_ERROR_CODES = {
+          LICENSE_BLOCKED: 'LIC_BLOCKED',
+          LICENSE_EXPIRED: 'LIC_EXPIRED',
+          LICENSE_ARCHIVED: 'LIC_ARCHIVED',
+          ALREADY_HAS_USERS: 'AUTH_ALREADY_REGISTERED',
+        } as const;
+        const apiCode = REGISTER_ERROR_CODES[decision.code];
+        throw new ApiError(apiCode, apiCode === 'AUTH_ALREADY_REGISTERED' ? 409 : 403);
       }
       const email = normalizeEmail(input.email);
       const secret = hashSecret(input.password);

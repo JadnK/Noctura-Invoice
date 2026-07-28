@@ -5,6 +5,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   LIC_NOT_FOUND: 'Lizenzschluessel nicht gefunden.',
   LIC_EXPIRED: 'Die Lizenz ist abgelaufen.',
   LIC_BLOCKED: 'Die Lizenz ist gesperrt.',
+  LIC_ARCHIVED: 'Die Lizenz ist archiviert und kann nicht mehr verwendet werden.',
   LIC_DEVICE_LIMIT: 'Die maximale Geraeteanzahl ist erreicht.',
   LIC_DEVICE_DEACTIVATED: 'Dieses Geraet wurde deaktiviert.',
   LIC_CLOCK_SKEW: 'Der Zeitstempel der Anfrage ist unplausibel.',

@@ -57,6 +57,11 @@ export const extendLicenseSchema = z.object({
   expiresAt: isoDate.nullable(),
 }).strict();
 
+export const adminAuditLogQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  cursor: z.string().uuid().optional(),
+}).strict();
+
 export const releaseSchema = z.object({
   version: appVersion,
   channel: z.enum(['stable', 'beta', 'nightly']),

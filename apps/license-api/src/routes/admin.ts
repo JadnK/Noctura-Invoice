@@ -4,9 +4,16 @@
  * nie in eine URL.
  */
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
-import { adminLoginSchema, blockLicenseSchema, createLicenseSchema, extendLicenseSchema } from '../lib/schemas.ts';
-import { generateLicenseKey, hashLicenseKey, keyPrefix, verifyAdminToken } from '../lib/crypto.ts';
+import {
+  adminAuditLogQuerySchema,
+  adminLoginSchema,
+  blockLicenseSchema,
+  createLicenseSchema,
+  extendLicenseSchema,
+} from '../lib/schemas.ts';
+import { generateLicenseKey, hashIp, hashLicenseKey, keyPrefix, verifyAdminToken } from '../lib/crypto.ts';
 import { PLAN_DEFAULTS } from '../lib/activation.ts';
 import { ApiError } from '../lib/errors.ts';
 const SESSION_COOKIE = 'noctura_admin';
@@ -18,6 +25,41 @@ function sessionHash(raw: string): string {
 
 export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
   const pepper = process.env.LICENSE_KEY_PEPPER as string;
+  const ipPepper = process.env.IP_HASH_PEPPER as string;
+
+  /**
+   * Protokolliert eine administrative Aenderung im AdminAuditLog. Die
+   * eigentliche Admin-Aktion ist zu diesem Zeitpunkt bereits abgeschlossen -
+   * ein Fehler beim Schreiben des Logs darf sie deshalb nicht rueckwirkend
+   * scheitern lassen, sonst wuerde ein reines Protokollierungsproblem eine
+   * erfolgreiche Lizenzaenderung als Fehler an den Admin melden.
+   */
+  async function writeAuditLog(
+    request: FastifyRequest,
+    entry: {
+      actor: string;
+      action: string;
+      objectType: string;
+      objectId: string | null;
+      diffJson?: Prisma.InputJsonValue | null;
+    },
+  ): Promise<void> {
+    try {
+      await app.prisma.adminAuditLog.create({
+        data: {
+          actor: entry.actor,
+          action: entry.action,
+          objectType: entry.objectType,
+          objectId: entry.objectId,
+          diffJson: entry.diffJson ?? undefined,
+          ipHash: hashIp(request.ip, ipPepper),
+        },
+      });
+    } catch (err) {
+      request.log.error({ err }, 'Audit-Log konnte nicht geschrieben werden');
+    }
+  }
+
   async function requireSession(request: FastifyRequest): Promise<string> {
     const raw = request.cookies[SESSION_COOKIE];
     if (!raw) throw new ApiError('AUTH_REQUIRED', 401);
@@ -100,7 +142,7 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ license });
   });
   app.post('/licenses', async (request, reply) => {
-    await requireSession(request);
+    const actor = await requireSession(request);
     const parsed = createLicenseSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
     const input = parsed.data;
@@ -126,11 +168,19 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
         features: { create: (input.features ?? defaults.features).map((code) => ({ featureCode: code })) },
       },
     });
+    // Nie den Klartextschluessel im Audit-Log ablegen - nur Plan und Geraetelimit.
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.create',
+      objectType: 'license',
+      objectId: license.id,
+      diffJson: { plan: license.plan, maxDevices: license.maxDevices },
+    });
     return reply.status(201).send({ license, key });
   });
 
   app.post('/licenses/:id/block', async (request, reply) => {
-    await requireSession(request);
+    const actor = await requireSession(request);
     const parsed = blockLicenseSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
     const { id } = request.params as { id: string };
@@ -147,34 +197,63 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       where: { revokedAt: null, user: { licenseId: id } },
       data: { revokedAt: new Date() },
     });
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.block',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { reason: parsed.data.reason },
+    });
     return reply.send({ license });
   });
 
   app.post('/licenses/:id/unblock', async (request, reply) => {
-    await requireSession(request);
+    const actor = await requireSession(request);
     const { id } = request.params as { id: string };
-    return reply.send({
-      license: await app.prisma.license.update({ where: { id }, data: { status: 'active', blockedReason: null } }),
+    const license = await app.prisma.license.update({
+      where: { id },
+      data: { status: 'active', blockedReason: null },
     });
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.unblock',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { status: license.status },
+    });
+    return reply.send({ license });
   });
   app.post('/licenses/:id/extend', async (request, reply) => {
-    await requireSession(request);
+    const actor = await requireSession(request);
     const parsed = extendLicenseSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
     const { id } = request.params as { id: string };
-    return reply.send({
-      license: await app.prisma.license.update({
-        where: { id },
-        data: { expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null, status: 'active' },
-      }),
+    const license = await app.prisma.license.update({
+      where: { id },
+      data: { expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null, status: 'active' },
     });
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.extend',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { expiresAt: parsed.data.expiresAt },
+    });
+    return reply.send({ license });
   });
   app.post('/licenses/:id/reset-devices', async (request, reply) => {
-    await requireSession(request);
+    const actor = await requireSession(request);
     const { id } = request.params as { id: string };
     const result = await app.prisma.licenseDevice.updateMany({
       where: { licenseId: id, deactivatedAt: null },
       data: { deactivatedAt: new Date() },
+    });
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.reset-devices',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { deactivated: result.count },
     });
     return reply.send({ deactivated: result.count });
   });
@@ -189,5 +268,62 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       app.prisma.licenseDevice.count({ where: { deactivatedAt: null } }),
     ]);
     return reply.send({ total, active, expired, blocked, trial, devices });
+  });
+
+  app.get('/owners', async (request, reply) => {
+    await requireSession(request);
+    const owners = await app.prisma.licenseOwner.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: {
+        _count: { select: { licenses: true } },
+        licenses: {
+          select: { id: true, plan: true, status: true, expiresAt: true },
+        },
+      },
+    });
+    return reply.send({
+      owners: owners.map((owner) => ({
+        id: owner.id,
+        name: owner.name,
+        email: owner.email,
+        note: owner.note,
+        createdAt: owner.createdAt.toISOString(),
+        licenseCount: owner._count.licenses,
+        licenses: owner.licenses.map((license) => ({
+          id: license.id,
+          plan: license.plan,
+          status: license.status,
+          expiresAt: license.expiresAt ? license.expiresAt.toISOString() : null,
+        })),
+      })),
+    });
+  });
+
+  app.get('/audit-log', async (request, reply) => {
+    await requireSession(request);
+    const parsed = adminAuditLogQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw new ApiError('VALIDATION', 400);
+    const limit = parsed.data.limit ?? 50;
+    const entries = await app.prisma.adminAuditLog.findMany({
+      orderBy: { at: 'desc' },
+      take: limit + 1,
+      ...(parsed.data.cursor ? { cursor: { id: parsed.data.cursor }, skip: 1 } : {}),
+    });
+    const hasMore = entries.length > limit;
+    const page = hasMore ? entries.slice(0, limit) : entries;
+    return reply.send({
+      entries: page.map((entry) => ({
+        id: entry.id,
+        at: entry.at.toISOString(),
+        actor: entry.actor,
+        action: entry.action,
+        objectType: entry.objectType,
+        objectId: entry.objectId,
+        diffJson: entry.diffJson,
+        ipHash: entry.ipHash,
+      })),
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+    });
   });
 }

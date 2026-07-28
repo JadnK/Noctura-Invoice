@@ -20,12 +20,22 @@ test('eine zweite offene Registrierung wird abgelehnt', () => {
   if (!result.ok) assert.equal(result.code, 'ALREADY_HAS_USERS');
 });
 
-test('gesperrte oder abgelaufene Lizenzen lassen keine Registrierung zu', () => {
-  for (const status of ['blocked', 'expired', 'archived']) {
-    const result = decideRegistration(status, 0);
-    assert.equal(result.ok, false);
-    if (!result.ok) assert.equal(result.code, 'LICENSE_NOT_ACTIVE');
-  }
+test('eine gesperrte Lizenz lehnt die Registrierung mit LICENSE_BLOCKED ab', () => {
+  const result = decideRegistration('blocked', 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'LICENSE_BLOCKED');
+});
+
+test('eine abgelaufene Lizenz lehnt die Registrierung mit LICENSE_EXPIRED ab', () => {
+  const result = decideRegistration('expired', 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'LICENSE_EXPIRED');
+});
+
+test('eine archivierte Lizenz lehnt die Registrierung mit LICENSE_ARCHIVED ab', () => {
+  const result = decideRegistration('archived', 0);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.code, 'LICENSE_ARCHIVED');
 });
 
 const admin = { id: 'a1', role: 'admin' as const, active: true, licenseId: 'lic-1' };
