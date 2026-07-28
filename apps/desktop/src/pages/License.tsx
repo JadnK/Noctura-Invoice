@@ -4,6 +4,7 @@ import type { LicenseCache } from '@noctura/license-client';
 import { api } from '../lib/api';
 import type { CompanySession, CompanyUserSummary } from '../lib/api';
 import { ApiError } from '../lib/api';
+import { Loading } from './pageUtils';
 
 const MODE_COLOR: Record<string, string> = {
   active: 'var(--n-success)',
@@ -37,6 +38,7 @@ export function License() {
         lastOnlineAt: license.lastOnlineAt ?? undefined,
         graceDays: license.graceDays,
         checkIntervalH: license.checkIntervalH,
+        blockedReason: license.blockedReason ?? undefined,
       });
     }
     setSession(companySession);
@@ -47,7 +49,7 @@ export function License() {
 
   useEffect(() => { void load(); }, []);
 
-  if (!cache) return <p className="text-sm text-subtle">Wird geladen…</p>;
+  if (!cache) return <Loading />;
 
   const view = evaluateLicense(cache, new Date().toISOString());
 
@@ -167,7 +169,7 @@ function TeamSection({ users, onCreated }: { users: CompanyUserSummary[] | null;
       )}
 
       {users === null ? (
-        <p className="text-sm text-subtle">Wird geladen…</p>
+        <Loading />
       ) : (
         <table className="w-full text-sm">
           <thead>

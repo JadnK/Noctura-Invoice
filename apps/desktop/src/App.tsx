@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { CommandPalette } from './components/CommandPalette';
 import type { Command } from './components/CommandPalette';
@@ -28,6 +28,14 @@ function activeNavigation(page: string): string {
   if (page === 'search') return '';
   return page;
 }
+
+/**
+ * Abstand zwischen automatischen Lizenz-Heartbeats, solange die Anwendung
+ * laeuft. Faengt eine serverseitige Sperrung innerhalb weniger Minuten ab,
+ * statt sie erst beim naechsten manuellen Aktivierungsversuch oder nach
+ * Ablauf der Offline-Kulanzfrist (bis zu 30 Tage) zu bemerken.
+ */
+const LICENSE_HEARTBEAT_INTERVAL_MS = 5 * 60_000;
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: 'dashboard' });
@@ -85,6 +93,38 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate]);
+
+  // Regelmaessige Lizenzbestaetigung, solange die Anwendung laeuft. Ein
+  // Server-Block (Admin-Panel) landet dadurch innerhalb weniger Minuten im
+  // lokalen Lizenz-Cache, ueber genau denselben Mechanismus (`ensure_allowed`
+  // in src-tauri/src/commands/license.rs), der schon heute greift, wenn die
+  // Offline-Kulanzfrist ohne Serverkontakt ablaeuft. Bei einem frischen
+  // Wechsel in den gesperrten Zustand wird zusaetzlich einmalig auf die
+  // Lizenzseite gewechselt, damit der Hinweis sichtbar wird, ohne erst eine
+  // eingeschraenkte Aktion auszuloesen — danach nicht erneut bei jedem
+  // weiteren Heartbeat, damit die weiterhin erlaubte Arbeit (Ansehen,
+  // Export, Zahlungserfassung, Sicherung) nicht unterbrochen wird.
+  const wasBlockedRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function tick() {
+      const result = await api.heartbeat().catch(() => null);
+      if (!result || cancelled) return;
+      const nowBlocked = result.status === 'blocked';
+      const wasBlocked = wasBlockedRef.current;
+      wasBlockedRef.current = nowBlocked;
+      if (nowBlocked && wasBlocked === false) navigate('license');
+    }
+
+    api.licenseStatus()
+      .then((state) => { wasBlockedRef.current = state.status === 'blocked'; })
+      .catch(() => { wasBlockedRef.current = null; })
+      .finally(() => { void tick(); });
+
+    const id = window.setInterval(() => void tick(), LICENSE_HEARTBEAT_INTERVAL_MS);
+    return () => { cancelled = true; window.clearInterval(id); };
   }, [navigate]);
 
   function openSearchResult(result: SearchResult) {

@@ -136,6 +136,7 @@ export interface LicenseState {
   graceDays: number;
   checkIntervalH: number;
   deviceId: string;
+  blockedReason: string | null;
 }
 
 export interface CompanySession {

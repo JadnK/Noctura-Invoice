@@ -25,7 +25,17 @@ pub struct LicenseState {
     pub grace_days: i64,
     pub check_interval_h: i64,
     pub device_id: String,
+    pub blocked_reason: Option<String>,
 }
+
+/// Fehlercodes des Lizenzservers, die eine ausdrueckliche, dauerhafte
+/// Ablehnung bedeuten - im Unterschied zu einer bloss vorruebergehenden
+/// Verbindungsstoerung (Timeout, DNS, Serverausfall). Nur bei diesen Codes
+/// wird sofort in den eingeschraenkten Modus gewechselt; alles andere laesst
+/// die bestehende Offline-Kulanzfrist unangetastet weiterlaufen. Die Codes
+/// stammen aus dem gleichen Vokabular wie `decideActivation` auf Serverseite.
+const EXPLICIT_REJECTION_CODES: &[&str] =
+    &["LIC_BLOCKED", "LIC_EXPIRED", "LIC_DEVICE_DEACTIVATED", "LIC_NOT_FOUND"];
 
 #[derive(Debug, Deserialize)]
 struct ActivateResponse {
@@ -126,44 +136,69 @@ fn nonce() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
-async fn call(path: &str, body: serde_json::Value) -> Result<ActivateResponse, AppError> {
+/// Ergebnis eines fehlgeschlagenen Serveraufrufs: die Nutzerfehlermeldung,
+/// und - nur wenn der Server ausdruecklich mit einem strukturierten Fehler
+/// geantwortet hat (nicht bei Netzwerk- oder Formatfehlern) - dessen Code.
+/// Der Code entscheidet, ob eine Ablehnung sofort als Sperre gilt oder als
+/// gewoehnliche Nichterreichbarkeit behandelt wird (siehe `license_heartbeat`).
+type CallError = (AppError, Option<String>);
+
+async fn call(path: &str, body: serde_json::Value) -> Result<ActivateResponse, CallError> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .user_agent(concat!("NocturaInvoice/", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|e| AppError::License(e.to_string()))?;
+        .map_err(|e| (AppError::License(e.to_string()), None))?;
 
     let response = client
         .post(format!("{BASE_URL}{path}"))
         .json(&body)
         .send()
         .await
-        .map_err(|_| AppError::License("Lizenzserver nicht erreichbar.".into()))?;
+        .map_err(|_| (AppError::License("Lizenzserver nicht erreichbar.".into()), None))?;
 
     if !response.status().is_success() {
         let error: serde_json::Value = response.json().await.unwrap_or_default();
         let code = error["error"]["code"].as_str().unwrap_or("LIC_UNKNOWN");
         let message = error["error"]["message"].as_str().unwrap_or("Unbekannter Fehler");
-        return Err(AppError::License(format!("{code}: {message}")));
+        return Err((AppError::License(format!("{code}: {message}")), Some(code.to_string())));
     }
 
     response
         .json::<ActivateResponse>()
         .await
-        .map_err(|_| AppError::License("Antwort des Lizenzservers unlesbar.".into()))
+        .map_err(|_| (AppError::License("Antwort des Lizenzservers unlesbar.".into()), None))
 }
 
 async fn store(payload: &str, signature: &str, token: &TokenPayload) -> Result<(), AppError> {
     let now = Utc::now().to_rfc3339();
     sqlx::query(
         "UPDATE license_cache SET token_payload = ?1, token_signature = ?2, status = 'valid',
-                                  last_online_at = ?3, expires_at = ?4, updated_at = ?3
+                                  last_online_at = ?3, expires_at = ?4, updated_at = ?3,
+                                  blocked_reason = NULL
          WHERE id = 1",
     )
     .bind(payload)
     .bind(signature)
     .bind(&now)
     .bind(&token.exp)
+    .execute(db::pool())
+    .await?;
+    Ok(())
+}
+
+/// Speichert eine ausdrueckliche Ablehnung durch den Lizenzserver lokal, so
+/// dass `license_status`/`ensure_allowed` sie ab dem naechsten Aufruf sehen -
+/// ohne auf den Ablauf der Offline-Kulanzfrist zu warten. Token bleiben
+/// erhalten (falls die Sperre spaeter aufgehoben wird, greift der naechste
+/// erfolgreiche Heartbeat wieder normal ueber `store`).
+async fn mark_blocked(reason: &str) -> Result<(), AppError> {
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE license_cache SET status = 'blocked', blocked_reason = ?1, updated_at = ?2 WHERE id = 1",
+    )
+    .bind(reason)
+    .bind(&now)
     .execute(db::pool())
     .await?;
     Ok(())
@@ -183,7 +218,8 @@ pub async fn activate_license(key: String) -> Result<LicenseState, ErrorPayloadW
             "ts": Utc::now().to_rfc3339(),
         }),
     )
-    .await?;
+    .await
+    .map_err(|(error, _)| error)?;
 
     let token = verify(&response.payload, &response.signature)?;
     if token.dev != device {
@@ -205,11 +241,24 @@ pub async fn activate_license(key: String) -> Result<LicenseState, ErrorPayloadW
         grace_days: token.grace_days,
         check_interval_h: token.check_interval_h,
         device_id: device,
+        blocked_reason: None,
     })
 }
 
-/// Regelmaessige Bestaetigung. Ein Fehlschlag durch fehlende Verbindung ist
-/// kein Fehler fuer den Nutzer — die Offline-Toleranz laeuft einfach weiter.
+/// Regelmaessige Bestaetigung, von der Oberflaeche alle paar Minuten aufgerufen
+/// (siehe `apps/desktop/src/App.tsx`), solange die Anwendung laeuft.
+///
+/// Zwei Fehlerarten werden bewusst unterschiedlich behandelt:
+/// - Nichterreichbarkeit (kein Netz, Timeout, Serverausfall, unlesbare
+///   Antwort) ist kein Fehler fuer den Nutzer — die bestehende
+///   Offline-Kulanzfrist (`graceDays`) laeuft einfach weiter, unveraendert.
+/// - Eine ausdrueckliche Ablehnung durch den Server (Lizenz gesperrt,
+///   Geraet deaktiviert, Lizenz nicht mehr auffindbar) wird sofort lokal als
+///   `blocked` vermerkt, statt sich hinter der Kulanzfrist zu verstecken.
+///   `ensure_allowed` liest den Status bei jeder Aktion frisch aus der
+///   Datenbank — sobald hier `blocked` steht, greift die bestehende
+///   Einschraenkung fuer alles ausserhalb von `ALWAYS_ALLOWED`, ganz ohne
+///   Sonderweg.
 #[tauri::command]
 pub async fn license_heartbeat() -> Result<LicenseState, ErrorPayloadWrapper> {
     let state = license_status().await;
@@ -220,7 +269,7 @@ pub async fn license_heartbeat() -> Result<LicenseState, ErrorPayloadWrapper> {
             .await
             .map_err(AppError::from)?;
 
-    let Some((Some(payload), Some(signature))) = stored else {
+    let Some((Some(payload), Some(_signature))) = stored else {
         return Ok(state);
     };
 
@@ -241,9 +290,13 @@ pub async fn license_heartbeat() -> Result<LicenseState, ErrorPayloadWrapper> {
             store(&response.payload, &response.signature, &token).await?;
             Ok(license_status().await)
         }
-        Err(error) => {
+        Err((error, Some(code))) if EXPLICIT_REJECTION_CODES.contains(&code.as_str()) => {
+            tracing::warn!(code, "Lizenzserver hat Geraet/Lizenz beim Heartbeat ausdruecklich abgelehnt");
+            mark_blocked(&error.to_string()).await?;
+            Ok(license_status().await)
+        }
+        Err((error, _)) => {
             tracing::info!(?error, "Heartbeat fehlgeschlagen, Offline-Toleranz läuft weiter");
-            let _ = signature;
             Ok(state)
         }
     }
@@ -267,19 +320,19 @@ pub async fn stored_license_key() -> Option<String> {
 #[tauri::command]
 pub async fn license_status() -> LicenseState {
     let pool = db::pool();
-    let row = sqlx::query_as::<_, (String, Option<String>, Option<String>, String, Option<String>)>(
-        "SELECT status, expires_at, last_online_at, device_id, token_payload FROM license_cache WHERE id = 1",
+    let row = sqlx::query_as::<_, (String, Option<String>, Option<String>, String, Option<String>, Option<String>)>(
+        "SELECT status, expires_at, last_online_at, device_id, token_payload, blocked_reason FROM license_cache WHERE id = 1",
     )
     .fetch_optional(pool)
     .await
     .ok()
     .flatten();
 
-    let Some((status, expires_at, last_online_at, device, payload)) = row else {
+    let Some((status, expires_at, last_online_at, device, payload, blocked_reason)) = row else {
         return LicenseState {
             status: "none".into(), plan: None, features: vec![], expires_at: None,
             last_online_at: None, grace_days: 7, check_interval_h: 24,
-            device_id: String::new(),
+            device_id: String::new(), blocked_reason: None,
         };
     };
 
@@ -302,6 +355,7 @@ pub async fn license_status() -> LicenseState {
         grace_days: token.as_ref().map(|t| t.grace_days).unwrap_or(7),
         check_interval_h: token.as_ref().map(|t| t.check_interval_h).unwrap_or(24),
         device_id: device,
+        blocked_reason,
     }
 }
 

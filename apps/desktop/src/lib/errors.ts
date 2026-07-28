@@ -33,6 +33,12 @@ export const ERROR_CATALOG: Readonly<Record<string, ErrorInfo>> = {
     fix: 'Lizenz verlängern. Bestehende Rechnungen bleiben lesbar und exportierbar.',
     retryable: false,
   },
+  E_LICENSE_RESTRICTED: {
+    code: 'E_LICENSE_RESTRICTED', title: 'Im eingeschränkten Modus nicht verfügbar',
+    cause: 'Die Lizenz ist gesperrt, abgelaufen oder konnte zu lange nicht geprüft werden.',
+    fix: 'Unter Lizenz nachsehen, was den eingeschränkten Modus ausgelöst hat. Ansehen, Export, Zahlungserfassung und Sicherung bleiben möglich.',
+    retryable: false,
+  },
   E_LICENSE_DEVICE_LIMIT: {
     code: 'E_LICENSE_DEVICE_LIMIT', title: 'Maximale Geräteanzahl erreicht',
     cause: 'Alle Geräteplätze dieser Lizenz sind belegt.',
