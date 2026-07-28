@@ -109,10 +109,10 @@ export default function NewLicensePage() {
         </div>
 
         <div className="mt-6 flex gap-2">
-          <a href="/licenses" className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white">
+          <a href="/licenses" className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover">
             Zur Lizenzübersicht
           </a>
-          <a href="/licenses/new" className="rounded border border-border px-3 py-1.5 text-sm">
+          <a href="/licenses/new" className="rounded border border-border px-3 py-1.5 text-sm hover:bg-raised">
             Weitere Lizenz erstellen
           </a>
         </div>

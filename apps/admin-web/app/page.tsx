@@ -29,7 +29,7 @@ export default function LoginPage() {
       }
       const body = await response.json();
       sessionStorage.setItem('csrf', body.csrfToken); // nur der CSRF-Wert, nicht der Token
-      window.location.href = '/licenses';
+      window.location.href = '/uebersicht';
     } finally {
       setBusy(false);
     }

@@ -158,12 +158,12 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
         <div className="mt-4 flex flex-wrap gap-2">
           {license.status === 'blocked' ? (
             <button type="button" disabled={busy} onClick={() => void runAction('/unblock')}
-                    className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">
+                    className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-40">
               Entsperren
             </button>
           ) : (
             <button type="button" disabled={busy} onClick={() => setShowBlockForm((v) => !v)}
-                    className="rounded border border-border px-3 py-1.5 text-sm" style={{ color: 'var(--n-danger)' }}>
+                    className="rounded border border-border px-3 py-1.5 text-sm hover:bg-raised" style={{ color: 'var(--n-danger)' }}>
               Sperren
             </button>
           )}
@@ -184,7 +184,7 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
               type="button"
               disabled={busy || blockReason.trim().length < 3}
               onClick={() => void runAction('/block', { reason: blockReason.trim() })}
-              className="rounded px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              className="rounded px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
               style={{ background: 'var(--n-danger)' }}
             >
               Sperrung bestätigen

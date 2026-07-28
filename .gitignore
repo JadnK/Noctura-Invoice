@@ -5,6 +5,7 @@ target/
 .env
 .env.local
 *.log
+*.tsbuildinfo
 coverage/
 .DS_Store
 /data/

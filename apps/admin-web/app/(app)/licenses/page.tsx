@@ -35,8 +35,11 @@ export default async function LicensesPage() {
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="mb-5 flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold tracking-tight">Lizenzen</h1>
-        <a href="/licenses/new" className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Lizenzen</h1>
+          <p className="mt-1 text-sm text-muted">Alle Lizenzen mit Status, Geräten und Ablaufdatum.</p>
+        </div>
+        <a href="/licenses/new" className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-hover">
           Lizenz erstellen
         </a>
       </div>
@@ -58,6 +61,7 @@ export default async function LicensesPage() {
               <th scope="col" className="border-b border-border py-2">Status</th>
               <th scope="col" className="border-b border-border py-2">Geräte</th>
               <th scope="col" className="border-b border-border py-2">Läuft ab</th>
+              <th scope="col" className="border-b border-border py-2 pr-3" />
             </tr>
           </thead>
           <tbody>
