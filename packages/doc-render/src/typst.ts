@@ -41,16 +41,29 @@ function renderBlock(block: Block, doc: RenderDocument): string {
         .map((r) => `[${escapeTypst(r.label)}], [${escapeTypst(r.value)}]`)
         .join(', ')})`;
     case 'items_table': {
-      const columns = block.columns ?? ['position', 'description', 'quantity', 'unit_price', 'line_total'];
+      const requestedColumns = block.columns ?? [
+        'position',
+        'description',
+        'quantity',
+        'unit_price',
+        'line_total',
+      ];
+      const columns = doc.taxRows.length === 0 && doc.taxNote
+        ? requestedColumns.filter((column) => column !== 'tax_rate')
+        : requestedColumns;
       const header = columns.map((c) => `[*${escapeTypst(c)}*]`).join(', ');
       const rows = doc.items
         .filter((item) => item.kind === 'item')
         .map((item) => {
           const values: Record<string, string> = {
-            position: String(item.position), description: item.description,
-            quantity: item.quantity ?? '', unit: item.unit ?? '',
-            unit_price: item.unitPrice ?? '', discount: item.discount ?? '',
-            tax_rate: item.taxRate ?? '', line_total: item.lineTotal ?? '',
+            position: String(item.position),
+            description: item.description,
+            quantity: item.quantity ?? '',
+            unit: item.unit ?? '',
+            unit_price: item.unitPrice ?? '',
+            discount: item.discount ?? '',
+            tax_rate: item.taxRate ?? '',
+            line_total: item.lineTotal ?? '',
           };
           return columns.map((c) => `[${escapeTypst(values[c] ?? '')}]`).join(', ');
         })
@@ -95,7 +108,6 @@ export function renderTypst(layout: TemplateLayout, doc: RenderDocument): string
   ],
 )
 #set text(font: "${page.fontFamily}", size: ${page.baseFontSizePt}pt, fill: rgb("${safeColor(page.primaryColor, '#1F2430')}"))`;
-
   const watermark =
     (layout.watermark === 'draft' && doc.isDraft) || (layout.watermark === 'paid' && doc.isPaid)
       ? `#place(center + horizon, rotate(-30deg, text(size: 60pt, fill: luma(200))[${doc.isDraft ? 'ENTWURF' : 'BEZAHLT'}]))`

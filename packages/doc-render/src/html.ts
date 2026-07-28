@@ -5,10 +5,23 @@ import type { Block, TemplateLayout, TemplateVariant } from './model.ts';
 import type { RenderDocument } from './document.ts';
 
 const COLUMN_LABELS: Record<string, string> = {
-  position: 'Pos.', description: 'Beschreibung', quantity: 'Menge', unit: 'Einheit',
-  unit_price: 'Einzelpreis', discount: 'Rabatt', tax_rate: 'MwSt.', line_total: 'Gesamt',
+  position: 'Pos.',
+  description: 'Beschreibung',
+  quantity: 'Menge',
+  unit: 'Einheit',
+  unit_price: 'Einzelpreis',
+  discount: 'Rabatt',
+  tax_rate: 'MwSt.',
+  line_total: 'Gesamt',
 };
-const NUMERIC_COLUMNS = new Set(['position', 'quantity', 'unit_price', 'discount', 'tax_rate', 'line_total']);
+const NUMERIC_COLUMNS = new Set([
+  'position',
+  'quantity',
+  'unit_price',
+  'discount',
+  'tax_rate',
+  'line_total',
+]);
 
 function styleAttribute(block: Block): string {
   const style = block.style ?? {};
@@ -31,7 +44,9 @@ function renderBlock(block: Block, doc: RenderDocument): string {
   const attr = styleAttribute(block);
   switch (block.type) {
     case 'logo':
-      return doc.logoPath ? `<div class="logo"${attr}><img src="${escapeHtml(doc.logoPath)}" alt="Firmenlogo"></div>` : '';
+      return doc.logoPath
+        ? `<div class="logo"${attr}><img src="${escapeHtml(doc.logoPath)}" alt="Firmenlogo"></div>`
+        : '';
     case 'sender_line':
     case 'text':
     case 'payment_info': {
@@ -46,53 +61,95 @@ function renderBlock(block: Block, doc: RenderDocument): string {
         .map((row) => `<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`)
         .join('')}</tbody></table></section>`;
     case 'items_table': {
-      const columns = block.columns ?? ['position', 'description', 'quantity', 'unit_price', 'line_total'];
+      const requestedColumns = block.columns ?? [
+        'position',
+        'description',
+        'quantity',
+        'unit_price',
+        'line_total',
+      ];
+      const columns = doc.taxRows.length === 0 && doc.taxNote
+        ? requestedColumns.filter((column) => column !== 'tax_rate')
+        : requestedColumns;
       const head = columns
-        .map((column) => `<th class="${NUMERIC_COLUMNS.has(column) ? 'num' : 'txt'}">${escapeHtml(COLUMN_LABELS[column] ?? column)}</th>`)
+        .map(
+          (column) =>
+            `<th class="${NUMERIC_COLUMNS.has(column) ? 'num' : 'txt'}">${escapeHtml(COLUMN_LABELS[column] ?? column)}</th>`,
+        )
         .join('');
-      const body = doc.items.map((item) => {
-        if (item.kind === 'page_break') return '<tr class="page-break"><td colspan="99"></td></tr>';
-        if (item.kind === 'heading') return `<tr class="heading"><td colspan="${columns.length}">${escapeHtml(item.description)}</td></tr>`;
-        const cells = columns.map((column) => {
-          const raw: Record<string, string | undefined> = {
-            position: String(item.position), description: item.description,
-            quantity: item.quantity, unit: item.unit, unit_price: item.unitPrice,
-            discount: item.discount, tax_rate: item.taxRate, line_total: item.lineTotal,
-          };
-          const value = escapeHtml(raw[column] ?? '');
-          const extra = column === 'description' && item.descriptionExtra
-            ? `<span class="extra">${escapeHtml(item.descriptionExtra)}</span>` : '';
-          return `<td class="${NUMERIC_COLUMNS.has(column) ? 'num' : 'txt'}">${value}${extra}</td>`;
-        });
-        return `<tr>${cells.join('')}</tr>`;
-      }).join('');
+      const body = doc.items
+        .map((item) => {
+          if (item.kind === 'page_break') return '<tr class="page-break"><td colspan="99"></td></tr>';
+          if (item.kind === 'heading') {
+            return `<tr class="heading"><td colspan="${columns.length}">${escapeHtml(item.description)}</td></tr>`;
+          }
+          const cells = columns.map((column) => {
+            const raw: Record<string, string | undefined> = {
+              position: String(item.position),
+              description: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              unit_price: item.unitPrice,
+              discount: item.discount,
+              tax_rate: item.taxRate,
+              line_total: item.lineTotal,
+            };
+            const value = escapeHtml(raw[column] ?? '');
+            const extra =
+              column === 'description' && item.descriptionExtra
+                ? `<span class="extra">${escapeHtml(item.descriptionExtra)}</span>`
+                : '';
+            return `<td class="${NUMERIC_COLUMNS.has(column) ? 'num' : 'txt'}">${value}${extra}</td>`;
+          });
+          return `<tr>${cells.join('')}</tr>`;
+        })
+        .join('');
       return `<div class="items-wrap"${attr}><table class="items"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
     }
     case 'totals':
       return `<div class="totals-card"${attr}><table class="totals"><tbody>${doc.totals
-        .map((total) => `<tr class="${total.emphasis ? 'emphasis' : ''}"><th scope="row">${escapeHtml(total.label)}</th><td class="num">${escapeHtml(total.value)}</td></tr>`)
+        .map(
+          (total) =>
+            `<tr class="${total.emphasis ? 'emphasis' : ''}"><th scope="row">${escapeHtml(total.label)}</th><td class="num">${escapeHtml(total.value)}</td></tr>`,
+        )
         .join('')}</tbody></table></div>`;
     case 'tax_summary': {
       if (doc.taxRows.length === 0 && !doc.taxNote) return '';
-      const rows = doc.taxRows.map((row) => `<tr><th scope="row">${escapeHtml(row.label)}</th><td class="num">${escapeHtml(row.net)}</td><td class="num">${escapeHtml(row.tax)}</td></tr>`).join('');
+      const rows = doc.taxRows
+        .map(
+          (row) =>
+            `<tr><th scope="row">${escapeHtml(row.label)}</th><td class="num">${escapeHtml(row.net)}</td><td class="num">${escapeHtml(row.tax)}</td></tr>`,
+        )
+        .join('');
       const note = doc.taxNote ? `<p class="tax-note">${escapeHtml(doc.taxNote)}</p>` : '';
       return `<section class="tax-block"${attr}>${rows ? `<table class="tax"><tbody>${rows}</tbody></table>` : ''}${note}</section>`;
     }
     case 'qr_code':
-      return doc.giroCode ? `<div class="qr"${attr} data-payload="${escapeHtml(doc.giroCode)}"><span>Zahlungs-QR</span></div>` : '';
-    case 'divider': return `<hr${attr}>`;
-    case 'spacer': return `<div class="spacer"${attr}></div>`;
-    case 'page_numbers': return `<p class="pages"${attr}>Seite <span class="page"></span> von <span class="pages-total"></span></p>`;
+      return doc.giroCode
+        ? `<div class="qr"${attr} data-payload="${escapeHtml(doc.giroCode)}"><span>Zahlungs-QR</span></div>`
+        : '';
+    case 'divider':
+      return `<hr${attr}>`;
+    case 'spacer':
+      return `<div class="spacer"${attr}></div>`;
+    case 'page_numbers':
+      return `<p class="pages"${attr}>Seite <span class="page"></span> von <span class="pages-total"></span></p>`;
     case 'signature':
-    case 'stamp': return `<div class="${block.type}"${attr}></div>`;
-    default: return '';
+    case 'stamp':
+      return `<div class="${block.type}"${attr}></div>`;
+    default:
+      return '';
   }
 }
 
-export interface HtmlResult { readonly html: string; readonly removedCss: readonly string[]; }
+export interface HtmlResult {
+  readonly html: string;
+  readonly removedCss: readonly string[];
+}
 
 function variantCss(variant: TemplateVariant, accent: string, secondary: string): string {
-  if (variant === 'classic') return `
+  if (variant === 'classic')
+    return `
     body { border-top: 0; }
     header { border-bottom: 1pt solid ${accent}; padding-bottom: 5mm; }
     .document-info h1 { font-family: "Source Serif 4", serif; font-size: 25pt; font-weight: 500; letter-spacing: .01em; }
@@ -100,7 +157,8 @@ function variantCss(variant: TemplateVariant, accent: string, secondary: string)
     .totals-card { background: transparent; border: 1pt solid ${secondary}; border-radius: 0; }
     .recipient-label { color: ${accent}; }
   `;
-  if (variant === 'compact') return `
+  if (variant === 'compact')
+    return `
     body { border-top-width: 2.5mm; }
     header { min-height: 13mm; margin-bottom: 7mm; }
     .document-info { margin-top: -2mm; }
@@ -131,8 +189,12 @@ export function renderHtml(layout: TemplateLayout, doc: RenderDocument): HtmlRes
   const marginRight = din5008 ? 20 : page.marginRightMm;
   const marginBottom = din5008 ? 20 : page.marginBottomMm;
   const marginLeft = din5008 ? 25 : page.marginLeftMm;
-  const watermark = layout.watermark === 'draft' && doc.isDraft ? 'ENTWURF'
-    : layout.watermark === 'paid' && doc.isPaid ? 'BEZAHLT' : '';
+  const watermark =
+    layout.watermark === 'draft' && doc.isDraft
+      ? 'ENTWURF'
+      : layout.watermark === 'paid' && doc.isPaid
+        ? 'BEZAHLT'
+        : '';
   const section = (blocks: readonly Block[]) => blocks.map((block) => renderBlock(block, doc)).join('\n');
   const base = `
 @page { size: A4; margin: ${marginTop}mm ${marginRight}mm ${marginBottom}mm ${marginLeft}mm; }
@@ -181,7 +243,6 @@ footer p { margin: 1mm 0; }
 .watermark { position: fixed; inset: 0; display: grid; place-items: center; font-size: 60pt; opacity: .07; transform: rotate(-30deg); pointer-events: none; }
 ${variantCss(variant, accent, secondary)}
 `.trim();
-
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escapeHtml(doc.title)}</title><style>${base}\n${custom.css}</style></head><body class="template-${variant} ${din5008 ? 'din-form-b' : 'free-layout'}">${watermark ? `<div class="watermark">${escapeHtml(watermark)}</div>` : ''}<header>${section(layout.header)}</header><main>${section(layout.body)}</main><footer>${section(layout.footer)}</footer></body></html>`;
   return { html, removedCss: custom.removed };
 }
