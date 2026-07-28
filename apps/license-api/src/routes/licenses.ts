@@ -1,6 +1,5 @@
 /** Oeffentliche Lizenzendpunkte. */
 import type { FastifyInstance } from 'fastify';
-import { randomBytes } from 'node:crypto';
 import { activateSchema, deactivateDeviceSchema, heartbeatSchema, validateSchema } from '../lib/schemas.ts';
 import { hashIp, hashLicenseKey } from '../lib/crypto.ts';
 import { checkReplay, MemoryNonceStore } from '../lib/replay.ts';
@@ -94,9 +93,80 @@ export async function registerLicenseRoutes(app: FastifyInstance): Promise<void>
   }, async (request, reply) => {
     const parsed = heartbeatSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);
-    // Gleiche Pruefkette wie bei /activate, ohne neues Geraet anzulegen.
-    // Erfolgreiche Antwort erneuert das Token mit frischer Nonce.
-    return reply.send({ renewed: true, nonce: randomBytes(24).toString('base64url') });
+    const input = parsed.data;
+
+    const replay = await checkReplay(nonceStore, input.nonce, input.ts, Date.now());
+    if (!replay.ok) throw new ApiError(replay.code, 400);
+
+    // Das vom Geraet mitgeschickte "token" ist nur die Nutzlast (kein
+    // Signaturteil) - sie stammt aus einer frueheren, vom Server signierten
+    // Antwort und dient hier ausschliesslich dazu, die Lizenz zu finden, ohne
+    // dass das Geraet bei jedem Heartbeat erneut den Lizenzschluessel
+    // mitschicken muss. Autorisiert wird nicht ueber diese Nutzlast, sondern
+    // ueber den Abgleich mit einem tatsaechlich fuer diese Lizenz aktivierten
+    // Geraet in der Datenbank (siehe deviceRecord unten).
+    let decoded: { lic?: unknown; dev?: unknown };
+    try {
+      decoded = JSON.parse(Buffer.from(input.token, 'base64url').toString('utf8'));
+    } catch {
+      throw new ApiError('VALIDATION', 400);
+    }
+    if (typeof decoded.lic !== 'string' || typeof decoded.dev !== 'string' || decoded.dev !== input.deviceId) {
+      throw new ApiError('VALIDATION', 400);
+    }
+
+    const license = await app.prisma.license.findUnique({
+      where: { id: decoded.lic },
+      include: { devices: true, features: true },
+    });
+    if (!license) throw new ApiError('LIC_NOT_FOUND', 404);
+
+    // Gleiche Pruefkette wie bei /activate (Status, Ablauf, Geraet), ohne ein
+    // neues Geraet anzulegen: ein Geraet, das dieser Lizenz nie zugeordnet
+    // war, gilt hier als abgelehnt statt - wie bei /activate - als neu
+    // hinzuzufuegen.
+    const deviceRecord = license.devices.find((d) => d.deviceId === input.deviceId);
+    if (!deviceRecord) throw new ApiError('LIC_DEVICE_DEACTIVATED', 403);
+
+    const nowIso = new Date().toISOString();
+    const decision = decideActivation(
+      {
+        id: license.id,
+        status: license.status as never,
+        plan: license.plan,
+        features: license.features.map((f) => f.featureCode),
+        expiresAt: license.expiresAt?.toISOString() ?? null,
+        maxDevices: license.maxDevices,
+        blockedReason: license.blockedReason,
+      },
+      license.devices.map((d) => ({ deviceId: d.deviceId, deactivatedAt: d.deactivatedAt?.toISOString() ?? null })),
+      input.deviceId,
+      nowIso,
+    );
+    if (!decision.ok) throw new ApiError(decision.code, decision.code === 'LIC_DEVICE_LIMIT' ? 409 : 403, decision.detail);
+
+    await app.prisma.$transaction([
+      app.prisma.license.update({ where: { id: license.id }, data: { lastSeenAt: new Date() } }),
+      app.prisma.licenseDevice.update({
+        where: { licenseId_deviceId: { licenseId: license.id, deviceId: input.deviceId } },
+        data: { lastSeenAt: new Date(), appVersion: input.appVersion },
+      }),
+    ]);
+
+    const defaults = PLAN_DEFAULTS[license.plan] ?? PLAN_DEFAULTS.monthly;
+    const token = issueToken({
+      lic: license.id,
+      dev: input.deviceId,
+      plan: license.plan,
+      feat: license.features.map((f) => f.featureCode),
+      exp: license.expiresAt?.toISOString() ?? null,
+      iat: nowIso,
+      nonce: input.nonce,
+      graceDays: defaults.graceDays,
+      checkIntervalH: defaults.checkIntervalH,
+    }, app.signingKey);
+
+    return reply.send({ ...token, expiresAt: license.expiresAt, features: license.features.map((f) => f.featureCode) });
   });
 
   app.post('/validate', { config: { rateLimit: { max: 60, timeWindow: '1 hour' } } }, async (request, reply) => {
