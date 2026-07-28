@@ -609,6 +609,9 @@ export const api = {
   onboardingStatus: () => call<boolean>('onboarding_status'),
   completeOnboarding: (settings: BusinessSettings) =>
     call<void>('complete_onboarding', { settings }),
+  fetchRemoteCompanyProfile: () => call<BusinessSettings | null>('fetch_remote_company_profile'),
+  pushRemoteCompanyProfile: (settings: BusinessSettings) =>
+    call<void>('push_remote_company_profile', { settings }),
 
   globalSearch: (query: string) => call<SearchResult[]>('global_search', { query }),
 

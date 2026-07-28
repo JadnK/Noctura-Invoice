@@ -230,6 +230,7 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
                 <th scope="col" className="border-b border-border py-2">Version</th>
                 <th scope="col" className="border-b border-border py-2">Zuletzt gesehen</th>
                 <th scope="col" className="border-b border-border py-2">Status</th>
+                <th scope="col" className="border-b border-border py-2"><span className="sr-only">Aktion</span></th>
               </tr>
             </thead>
             <tbody>
@@ -240,6 +241,19 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
                   <td className="border-b border-divider text-muted">{device.appVersion}</td>
                   <td className="border-b border-divider text-muted">{device.lastSeenAt.slice(0, 10)}</td>
                   <td className="border-b border-divider">{device.deactivatedAt ? 'deaktiviert' : 'aktiv'}</td>
+                  <td className="border-b border-divider text-right">
+                    {!device.deactivatedAt && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void runAction(`/devices/${device.deviceId}/deactivate`)}
+                        className="text-sm hover:underline disabled:opacity-40"
+                        style={{ color: 'var(--n-danger)' }}
+                      >
+                        Rauswerfen
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -262,6 +276,7 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
                 <th scope="col" className="border-b border-border py-2">Rolle</th>
                 <th scope="col" className="border-b border-border py-2">Status</th>
                 <th scope="col" className="border-b border-border py-2">Letzte Anmeldung</th>
+                <th scope="col" className="border-b border-border py-2"><span className="sr-only">Aktion</span></th>
               </tr>
             </thead>
             <tbody>
@@ -272,6 +287,19 @@ export default function LicenseDetailPage({ params }: { params: { id: string } }
                   <td className="border-b border-divider">{user.role === 'admin' ? 'Administrator' : 'Mitglied'}</td>
                   <td className="border-b border-divider">{user.active ? 'aktiv' : 'deaktiviert'}</td>
                   <td className="border-b border-divider text-muted">{user.lastLoginAt ? user.lastLoginAt.slice(0, 10) : '—'}</td>
+                  <td className="border-b border-divider text-right">
+                    {user.active && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void runAction(`/users/${user.id}/deactivate`)}
+                        className="text-sm hover:underline disabled:opacity-40"
+                        style={{ color: 'var(--n-danger)' }}
+                      >
+                        Deaktivieren
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

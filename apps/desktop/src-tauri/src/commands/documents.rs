@@ -950,6 +950,7 @@ async fn snapshot_customer(executor: &mut sqlx::SqliteConnection, customer_id: &
 
 #[tauri::command]
 pub async fn finalize_quote(id: String) -> Result<String, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("quotes.finalize").await?;
     let mut tx = db::pool().begin().await?;
     let row = sqlx::query("SELECT status, customer_id, issue_date, valid_until FROM quote WHERE id=?1")
         .bind(&id).fetch_one(&mut *tx).await?;
@@ -989,6 +990,7 @@ pub async fn update_quote_status(id: String, status: String) -> Result<(), Error
 
 #[tauri::command]
 pub async fn convert_quote_to_invoice(id: String) -> Result<String, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("quotes.convert").await?;
     let mut tx = db::pool().begin().await?;
     let row = sqlx::query("SELECT * FROM quote WHERE id=?1")
         .bind(&id).fetch_one(&mut *tx).await?;
@@ -1063,6 +1065,7 @@ pub async fn create_credit_note_from_invoice(
     reason: String,
     template_id: Option<String>,
 ) -> Result<String, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("credit_notes.create").await?;
     if reason.trim().is_empty() { return Err(AppError::MissingFields("Grund der Gutschrift".into()).into()); }
     let mut tx = db::pool().begin().await?;
     let origin = sqlx::query("SELECT * FROM invoice WHERE id=?1")
@@ -1111,6 +1114,7 @@ pub async fn create_credit_note_from_invoice(
 
 #[tauri::command]
 pub async fn finalize_credit_note(id: String) -> Result<String, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("credit_notes.finalize").await?;
     let mut tx = db::pool().begin().await?;
     let row = sqlx::query("SELECT status,customer_id,kind FROM credit_note WHERE id=?1")
         .bind(&id).fetch_one(&mut *tx).await?;

@@ -7,8 +7,10 @@
  * Cookie - die Gegenstelle ist die Desktop-App, kein Browser.
  */
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  companyProfileSchema,
   createLicenseUserSchema,
   loginLicenseUserSchema,
   registerLicenseUserSchema,
@@ -318,5 +320,31 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       data: { active: false },
     });
     return reply.send({ deactivated: true });
+  });
+
+  /**
+   * Firmendaten der Lizenz. Genau einmal je Lizenz, nicht je Geraet oder
+   * Konto - jedes Mitglied darf sie lesen (fuer Rechnungen/Angebote noetig),
+   * aendern darf sie nur ein Admin, analog zur Mitarbeiterverwaltung.
+   */
+  app.get('/company-profile', async (request, reply) => {
+    const caller = await requireUser(request);
+    const profile = await app.prisma.companyProfile.findUnique({
+      where: { licenseId: caller.licenseId },
+    });
+    return reply.send({ profile: profile?.dataJson ?? null });
+  });
+
+  app.put('/company-profile', async (request, reply) => {
+    const caller = await requireUser(request);
+    if (caller.role !== 'admin') throw new ApiError('AUTH_INVALID', 403);
+    const parsed = companyProfileSchema.safeParse(request.body);
+    if (!parsed.success) throw new ApiError('VALIDATION', 400);
+    await app.prisma.companyProfile.upsert({
+      where: { licenseId: caller.licenseId },
+      create: { licenseId: caller.licenseId, dataJson: parsed.data.profile as Prisma.InputJsonValue, updatedByUserId: caller.id },
+      update: { dataJson: parsed.data.profile as Prisma.InputJsonValue, updatedByUserId: caller.id },
+    });
+    return reply.send({ ok: true });
   });
 }

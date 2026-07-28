@@ -16,11 +16,13 @@ pub async fn get_product(id: String) -> Result<Option<Product>, ErrorPayloadWrap
 
 #[tauri::command]
 pub async fn create_product(input: ProductInput) -> Result<Product, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("products.write").await?;
     Ok(products::create(db::pool(), input).await?)
 }
 
 #[tauri::command]
 pub async fn update_product(id: String, input: ProductInput) -> Result<Product, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("products.write").await?;
     Ok(products::update(db::pool(), &id, input).await?)
 }
 

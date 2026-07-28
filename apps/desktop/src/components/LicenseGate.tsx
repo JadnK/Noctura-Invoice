@@ -24,7 +24,7 @@ type GateState =
  * Online-Prüfung. Einmal durchlaufen, greift danach die gewohnte
  * Offline-Toleranz.
  */
-export function LicenseGate({ children }: { children: React.ReactNode }) {
+export function LicenseGate({ children }: { children: (session: CompanySession) => React.ReactNode }) {
   const [state, setState] = useState<GateState>({ step: 'loading' });
   async function check() {
     const [license, session, storedKey] = await Promise.all([
@@ -66,7 +66,7 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <>{children(state.session)}</>;
 }
 function LicenseActivationScreen({ onActivated }: { onActivated: () => void }) {
   const [key, setKey] = useState('');

@@ -8,6 +8,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   LIC_ARCHIVED: 'Die Lizenz ist archiviert und kann nicht mehr verwendet werden.',
   LIC_DEVICE_LIMIT: 'Die maximale Geraeteanzahl ist erreicht.',
   LIC_DEVICE_DEACTIVATED: 'Dieses Geraet wurde deaktiviert.',
+  LIC_DEVICE_NOT_FOUND: 'Dieses Geraet wurde fuer die Lizenz nicht gefunden.',
+  LIC_USER_NOT_FOUND: 'Dieses Firmenkonto wurde fuer die Lizenz nicht gefunden.',
   LIC_CLOCK_SKEW: 'Der Zeitstempel der Anfrage ist unplausibel.',
   LIC_REPLAY: 'Die Anfrage wurde bereits verarbeitet.',
   LIC_NONCE_WEAK: 'Die Anfrage enthaelt keine gueltige Nonce.',

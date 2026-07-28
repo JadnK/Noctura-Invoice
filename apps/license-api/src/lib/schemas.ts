@@ -105,3 +105,12 @@ export const createLicenseUserSchema = z.object({
 export type RegisterLicenseUserInput = z.infer<typeof registerLicenseUserSchema>;
 export type LoginLicenseUserInput = z.infer<typeof loginLicenseUserSchema>;
 export type CreateLicenseUserInput = z.infer<typeof createLicenseUserSchema>;
+
+// --- Firmendaten (CompanyProfile) ---
+
+export const companyProfileSchema = z.object({
+  profile: z.record(z.string(), z.unknown())
+    .refine((value) => JSON.stringify(value).length <= 20_000, 'Firmendaten zu groß'),
+}).strict();
+
+export type CompanyProfileInput = z.infer<typeof companyProfileSchema>;

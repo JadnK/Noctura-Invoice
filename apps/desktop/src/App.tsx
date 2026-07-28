@@ -18,7 +18,7 @@ import { Help } from './pages/Help';
 import { OnboardingWizard } from './pages/OnboardingWizard';
 import { SearchResults } from './pages/SearchResults';
 import { api } from './lib/api';
-import type { SearchResult } from './lib/api';
+import type { CompanySession, SearchResult } from './lib/api';
 import { matchShortcut } from './lib/shortcuts';
 import { NAVIGATION } from './lib/navigation';
 
@@ -35,25 +35,45 @@ function activeNavigation(page: string): string {
  * statt sie erst beim naechsten manuellen Aktivierungsversuch oder nach
  * Ablauf der Offline-Kulanzfrist (bis zu 30 Tage) zu bemerken.
  */
-const blockLogoutHandledRef = useRef(false);
 const LICENSE_HEARTBEAT_INTERVAL_MS = 30_000;
 
-export default function App() {
+export default function App({ session }: { session: CompanySession }) {
   const [route, setRoute] = useState<Route>({ page: 'dashboard' });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   const [onboardingClosable, setOnboardingClosable] = useState(false);
 
+  // Bevor der lokale Einrichtungsassistent startet: pruefen, ob ein anderes
+  // Konto derselben Lizenz die Firmendaten bereits auf dem Server hinterlegt
+  // hat (siehe apps/license-api/src/routes/auth.ts, /company-profile). Falls
+  // ja, werden sie direkt uebernommen, statt dass hier erneut eine leere
+  // Firma angelegt wuerde.
   useEffect(() => {
-    api.onboardingStatus()
-      .then((complete) => {
-        setOnboarding(!complete);
-        setOnboardingClosable(false);
-      })
-      .catch(() => {
+    async function init() {
+      let complete: boolean;
+      try {
+        complete = await api.onboardingStatus();
+      } catch {
         setOnboarding(true);
         setOnboardingClosable(false);
-      });
+        return;
+      }
+      if (complete) {
+        setOnboarding(false);
+        setOnboardingClosable(false);
+        return;
+      }
+      const remote = await api.fetchRemoteCompanyProfile().catch(() => null);
+      if (remote) {
+        await api.completeOnboarding(remote).catch(() => undefined);
+        setOnboarding(false);
+        setOnboardingClosable(false);
+        return;
+      }
+      setOnboarding(true);
+      setOnboardingClosable(false);
+    }
+    void init();
   }, []);
 
   const navigate = useCallback((page: string, id?: string, query?: string) => {
@@ -107,6 +127,7 @@ export default function App() {
   // weiteren Heartbeat, damit die weiterhin erlaubte Arbeit (Ansehen,
   // Export, Zahlungserfassung, Sicherung) nicht unterbrochen wird.
   const wasBlockedRef = useRef<boolean | null>(null);
+  const blockLogoutHandledRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
 
@@ -156,7 +177,14 @@ export default function App() {
   if (onboarding) {
     return (
       <OnboardingWizard
-        onFinish={() => { setOnboarding(false); setOnboardingClosable(false); }}
+        onFinish={(settings) => {
+          setOnboarding(false);
+          setOnboardingClosable(false);
+          // Bestmoeglich fuer weitere Konten derselben Lizenz freigeben - ein
+          // fehlgeschlagener Server-Kontakt (z. B. offline) darf die gerade
+          // abgeschlossene lokale Einrichtung nicht blockieren.
+          void api.pushRemoteCompanyProfile(settings).catch(() => undefined);
+        }}
         onSkip={onboardingClosable ? () => { setOnboarding(false); setOnboardingClosable(false); } : undefined}
       />
     );
@@ -171,6 +199,8 @@ export default function App() {
         active={activeNavigation(route.page)}
         onNavigate={(page) => navigate(page)}
         onGlobalSearch={(query) => navigate('search', undefined, query)}
+        session={session}
+        onLogout={() => { void api.logoutCompanyAccount().then(() => window.location.reload()); }}
       >
         {route.page === 'dashboard' && <Dashboard onNavigate={(page) => navigate(page)} />}
         {route.page === 'invoices' && <Invoices initialQuery={route.query} initialId={invoiceId} />}

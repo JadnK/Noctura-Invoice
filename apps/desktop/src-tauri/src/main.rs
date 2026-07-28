@@ -94,6 +94,8 @@ fn main() {
             commands::company::logout_company_account,
             commands::company::list_company_users,
             commands::company::create_company_user,
+            commands::company::fetch_remote_company_profile,
+            commands::company::push_remote_company_profile,
             commands::customers::list_customers,
             commands::customers::get_customer,
             commands::customers::create_customer,

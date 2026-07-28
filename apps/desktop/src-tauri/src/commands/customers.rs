@@ -16,11 +16,13 @@ pub async fn get_customer(id: String) -> Result<Option<CustomerDetail>, ErrorPay
 
 #[tauri::command]
 pub async fn create_customer(input: CustomerInput) -> Result<Customer, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("customers.write").await?;
     Ok(customers::create(db::pool(), input).await?)
 }
 
 #[tauri::command]
 pub async fn update_customer(id: String, input: CustomerInput) -> Result<Customer, ErrorPayloadWrapper> {
+    crate::commands::license::ensure_allowed("customers.write").await?;
     Ok(customers::update(db::pool(), &id, input).await?)
 }
 

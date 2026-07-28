@@ -275,3 +275,58 @@ pub async fn create_company_user(
         active: true, created_at: Utc::now().to_rfc3339(), last_login_at: None,
     })
 }
+
+#[derive(Debug, Deserialize)]
+struct CompanyProfileResponse {
+    profile: Option<crate::commands::workspace_settings::BusinessSettings>,
+}
+
+/// Firmendaten vom Server laden - vorhanden, sobald irgendein Konto dieser
+/// Lizenz die Ersteinrichtung bereits abgeschlossen hat. So muss ein
+/// zusaetzliches Konto derselben Firma nicht selbst noch einmal durch den
+/// Einrichtungsassistenten (siehe App.tsx), sondern uebernimmt die
+/// bestehenden Firmendaten direkt in seine lokale Ablage.
+#[tauri::command]
+pub async fn fetch_remote_company_profile(
+) -> Result<Option<crate::commands::workspace_settings::BusinessSettings>, ErrorPayloadWrapper> {
+    let token = current_token().await?;
+    let http = client()?;
+    let response = http
+        .get(format!("{BASE_URL}/company-profile"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| AppError::License("Lizenzserver nicht erreichbar.".into()))?;
+
+    if !response.status().is_success() {
+        return Err(read_server_error(response).await.into());
+    }
+    let body: CompanyProfileResponse = response
+        .json()
+        .await
+        .map_err(|_| AppError::License("Antwort des Lizenzservers unlesbar.".into()))?;
+    Ok(body.profile)
+}
+
+/// Firmendaten auf dem Server sichern, damit weitere Konten derselben Lizenz
+/// sie bei ihrer ersten Anmeldung vorfinden, statt eine eigene leere Firma
+/// anzulegen. Der Server lehnt das fuer Nicht-Admins ab.
+#[tauri::command]
+pub async fn push_remote_company_profile(
+    settings: crate::commands::workspace_settings::BusinessSettings,
+) -> Result<(), ErrorPayloadWrapper> {
+    let token = current_token().await?;
+    let http = client()?;
+    let response = http
+        .put(format!("{BASE_URL}/company-profile"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "profile": settings }))
+        .send()
+        .await
+        .map_err(|_| AppError::License("Lizenzserver nicht erreichbar.".into()))?;
+
+    if !response.status().is_success() {
+        return Err(read_server_error(response).await.into());
+    }
+    Ok(())
+}

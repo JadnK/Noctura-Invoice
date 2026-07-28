@@ -53,6 +53,7 @@ model License {
   devices       LicenseDevice[]
   activations   LicenseActivation[]
   users         LicenseUser[]
+  companyProfile CompanyProfile?
 
   @@index([status, expiresAt])
   @@index([keyPrefix])
@@ -124,6 +125,21 @@ model LicenseUser {
   // dieselbe Person kann bei zwei Firmen mit unterschiedlichen Lizenzen
   // unterschiedliche Konten haben.
   @@unique([licenseId, email])
+}
+
+// Firmendaten (Name, Adresse, Steuer, Bank, Nummernkreise) pro Lizenz - genau
+// einmal je Lizenz, nicht je Geraet. Damit sieht jedes weitere Konto derselben
+// Lizenz beim ersten Anmelden die bereits eingerichtete Firma, statt selbst
+// eine leere lokale Ersteinrichtung zu durchlaufen. Als JSON abgelegt, weil
+// die Desktop-App dieselbe Feldmenge bereits lokal so kennt (BusinessSettings
+// in apps/desktop/src/lib/api.ts) - keine zweite parallele Spaltenliste noetig.
+model CompanyProfile {
+  id              String      @id @default(uuid())
+  licenseId       String      @unique
+  license         License     @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  dataJson        Json
+  updatedAt       DateTime    @updatedAt
+  updatedByUserId String?
 }
 
 model LicenseUserSession {

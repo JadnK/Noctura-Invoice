@@ -16,7 +16,7 @@ createRoot(container).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <LicenseGate>
-        <App />
+        {(session) => <App session={session} />}
       </LicenseGate>
     </QueryClientProvider>
   </React.StrictMode>,

@@ -257,6 +257,50 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     });
     return reply.send({ deactivated: result.count });
   });
+  app.post('/licenses/:id/devices/:deviceId/deactivate', async (request, reply) => {
+    const actor = await requireSession(request);
+    const { id, deviceId } = request.params as { id: string; deviceId: string };
+    const result = await app.prisma.licenseDevice.updateMany({
+      where: { licenseId: id, deviceId, deactivatedAt: null },
+      data: { deactivatedAt: new Date() },
+    });
+    if (result.count === 0) throw new ApiError('LIC_DEVICE_NOT_FOUND', 404);
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.device-deactivate',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { deviceId },
+    });
+    return reply.send({ deactivated: true });
+  });
+  app.post('/licenses/:id/users/:userId/deactivate', async (request, reply) => {
+    const actor = await requireSession(request);
+    const { id, userId } = request.params as { id: string; userId: string };
+    const target = await app.prisma.licenseUser.findUnique({ where: { id: userId } });
+    if (!target || target.licenseId !== id) throw new ApiError('LIC_USER_NOT_FOUND', 404);
+    // Der letzte aktive Admin einer Firma darf nicht deaktiviert werden - sonst
+    // gaebe es keinen Weg mehr, neue Konten anzulegen oder Zugaenge zu sperren.
+    if (target.role === 'admin' && target.active) {
+      const remainingAdmins = await app.prisma.licenseUser.count({
+        where: { licenseId: id, role: 'admin', active: true, id: { not: userId } },
+      });
+      if (remainingAdmins === 0) throw new ApiError('AUTH_LAST_ADMIN', 409);
+    }
+    await app.prisma.licenseUser.update({ where: { id: userId }, data: { active: false } });
+    await app.prisma.licenseUserSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await writeAuditLog(request, {
+      actor,
+      action: 'license.user-deactivate',
+      objectType: 'license',
+      objectId: id,
+      diffJson: { userId },
+    });
+    return reply.send({ deactivated: true });
+  });
   app.get('/stats', async (request, reply) => {
     await requireSession(request);
     const [total, active, expired, blocked, trial, devices] = await Promise.all([

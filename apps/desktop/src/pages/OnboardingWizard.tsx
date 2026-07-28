@@ -11,7 +11,7 @@ const STEPS = [
   { id: 'numbering', title: 'Nummernkreise', sections: ['numbering'] as const },
 ];
 
-export function OnboardingWizard({ onFinish, onSkip }: { onFinish: () => void; onSkip?: () => void }) {
+export function OnboardingWizard({ onFinish, onSkip }: { onFinish: (settings: BusinessSettings) => void; onSkip?: () => void }) {
   const [step, setStep] = useState(0);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -49,7 +49,7 @@ export function OnboardingWizard({ onFinish, onSkip }: { onFinish: () => void; o
     setBusy(true);
     try {
       await api.completeOnboarding(settings);
-      onFinish();
+      onFinish(settings);
     } catch (err) {
       setError(toApiError(err));
     } finally {
