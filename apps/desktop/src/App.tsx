@@ -35,7 +35,8 @@ function activeNavigation(page: string): string {
  * statt sie erst beim naechsten manuellen Aktivierungsversuch oder nach
  * Ablauf der Offline-Kulanzfrist (bis zu 30 Tage) zu bemerken.
  */
-const LICENSE_HEARTBEAT_INTERVAL_MS = 5 * 60_000;
+const blockLogoutHandledRef = useRef(false);
+const LICENSE_HEARTBEAT_INTERVAL_MS = 30_000;
 
 export default function App() {
   const [route, setRoute] = useState<Route>({ page: 'dashboard' });
@@ -111,11 +112,26 @@ export default function App() {
 
     async function tick() {
       const result = await api.heartbeat().catch(() => null);
+
       if (!result || cancelled) return;
-      const nowBlocked = result.status === 'blocked';
-      const wasBlocked = wasBlockedRef.current;
-      wasBlockedRef.current = nowBlocked;
-      if (nowBlocked && wasBlocked === false) navigate('license');
+
+      const blocked = result.status === 'blocked';
+
+      if (blocked && !blockLogoutHandledRef.current) {
+        blockLogoutHandledRef.current = true;
+
+        // Entfernt die lokale Firmen-Session auch dann,
+        // wenn der Server-Token bereits widerrufen wurde.
+        await api.logoutCompanyAccount().catch(() => undefined);
+
+        if (!cancelled) {
+          navigate('license');
+        }
+      }
+
+      if (!blocked) {
+        blockLogoutHandledRef.current = false;
+      }
     }
 
     api.licenseStatus()

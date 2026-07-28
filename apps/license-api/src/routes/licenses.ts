@@ -89,7 +89,12 @@ export async function registerLicenseRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.post('/heartbeat', {
-    config: { rateLimit: { max: 60, timeWindow: '1 hour' } },
+    config: {
+      rateLimit: {
+        max: 180,
+        timeWindow: '1 hour',
+      },
+    },
   }, async (request, reply) => {
     const parsed = heartbeatSchema.safeParse(request.body);
     if (!parsed.success) throw new ApiError('VALIDATION', 400);

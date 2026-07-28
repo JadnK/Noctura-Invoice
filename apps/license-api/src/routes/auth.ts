@@ -35,6 +35,26 @@ interface AuthedCaller {
   readonly active: boolean;
 }
 
+function assertLicenseUsable(license: {
+  status: string;
+  expiresAt: Date | null;
+}): void {
+  if (license.status === 'blocked') {
+    throw new ApiError('LIC_BLOCKED', 403);
+  }
+
+  if (license.status === 'archived') {
+    throw new ApiError('LIC_ARCHIVED', 403);
+  }
+
+  if (
+    license.status === 'expired'
+    || (license.expiresAt !== null && license.expiresAt <= new Date())
+  ) {
+    throw new ApiError('LIC_EXPIRED', 403);
+  }
+}
+
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   const pepper = process.env.LICENSE_KEY_PEPPER as string;
 
@@ -44,8 +64,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const token = header.slice('Bearer '.length);
     const session = await app.prisma.licenseUserSession.findUnique({
       where: { tokenHash: sessionHash(token) },
-      include: { user: true },
+      include: {
+        user: {
+          include: {
+            license: true,
+          },
+        },
+      },
     });
+
     if (
       !session
       || session.revokedAt
@@ -54,6 +81,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     ) {
       throw new ApiError('AUTH_REQUIRED', 401);
     }
+
+    assertLicenseUsable(session.user.license);
     return {
       id: session.user.id,
       licenseId: session.user.licenseId,
@@ -124,6 +153,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         where: { keyHash: hashLicenseKey(input.licenseKey, pepper) },
       });
       if (!license) throw new ApiError('AUTH_INVALID', 401);
+
+      assertLicenseUsable(license);
       const email = normalizeEmail(input.email);
       const user = await app.prisma.licenseUser.findUnique({
         where: { licenseId_email: { licenseId: license.id, email } },
