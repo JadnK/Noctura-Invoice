@@ -12,7 +12,7 @@ PostgreSQL 16. Keine gemeinsamen Tabellen, keine Replikation.
 - Loeschstrategie: fachliche Daten `deleted_at` (Papierkorb, 30 Tage), finalisierte
   Belege gar nicht. `ON DELETE RESTRICT` ueberall, wo ein Beleg haengt.
 
-## Lokale Kernentitaeten (Auszug, vollstaendig in `apps/desktop/migrations`)
+## Lokale Kernentitaeten (Auszug, vollstaendig in `apps/desktop/src-tauri/migrations`)
 
     company_profile(id, legal_name, legal_form, owner_first, owner_last, vat_id,
                     tax_number, register_court, register_number, ceo, logo_path,

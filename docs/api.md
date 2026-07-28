@@ -49,5 +49,6 @@ zurueckgegeben. Danach nur noch Praefix und Hash.
 
 ## OpenAPI
 
-`apps/license-api/openapi.yaml` wird aus den Zod-Schemata erzeugt
-(`npm run openapi:generate`) und im Admin-Panel unter `/docs` ausgeliefert.
+Geplant, noch nicht umgesetzt: eine `apps/license-api/openapi.yaml`, aus den
+Zod-Schemata erzeugt und im Admin-Panel unter `/docs` ausgeliefert. Bis dahin
+ist dieses Dokument die verbindliche Beschreibung der Endpunkte.

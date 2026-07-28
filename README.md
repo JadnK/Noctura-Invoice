@@ -1,5 +1,8 @@
 # Noctura Invoice
 
+[![CI](https://github.com/JadnK/Noctura-Invoice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JadnK/Noctura-Invoice/actions/workflows/ci.yml)
+[![Lizenz](https://img.shields.io/badge/Lizenz-Source--available-blue)](LICENSE)
+
 Rechnungssoftware für kleine Unternehmen: eine Windows-Desktop-App, in der die
 Daten lokal bleiben, dazu ein eigener Lizenz- und Verwaltungsserver.
 
@@ -9,6 +12,18 @@ Daten lokal bleiben, dazu ein eigener Lizenz- und Verwaltungsserver.
 > Weitergabe und abgeleitete Werke sind nicht gestattet. Siehe [`LICENSE`](LICENSE).
 > Warum ein Klon nicht ohne Weiteres läuft, steht in
 > [`docs/veroeffentlichung.md`](docs/veroeffentlichung.md).
+
+## Inhalt
+
+- [Aufbau des Repositories](#aufbau-des-repositories)
+- [Was die Software macht](#was-die-software-macht)
+- [Ein paar Entscheidungen, die das Ganze tragen](#ein-paar-entscheidungen-die-das-ganze-tragen)
+- [Code lesen](#code-lesen)
+- [Bauen und Betreiben](#bauen-und-betreiben)
+- [Historie](#historie)
+- [Kontakt](#kontakt)
+
+## Aufbau des Repositories
 
 ```
 apps/desktop            Windows-App: Tauri 2, React, SQLite, PDF, SMTP
@@ -31,7 +46,8 @@ Rechnungen, Angebote und Gutschriften schreiben, versenden, mahnen und
 auswerten — für Betriebe, die keine Cloud-Buchhaltung wollen. Rechnungs- und
 Kundendaten liegen in einer lokalen SQLite-Datenbank und verlassen den Rechner
 nicht. Der Server kennt ausschliesslich Lizenzen: Schlüssel-Hash, Geräte-ID,
-Programmversion. Keine Belege, keine Beträge, keine Kundennamen.
+Programmversion, Betriebssystemfamilie. Keine Belege, keine Beträge, keine
+Kundennamen (siehe [`docs/adr/0002-lokale-daten.md`](docs/adr/0002-lokale-daten.md)).
 
 Vollständig umgesetzt: Firmenprofil und Onboarding, Kunden- und
 Produktverwaltung, Rabattsystem, Rechnungseditor mit Live-Berechnung,
@@ -89,13 +105,6 @@ Netzwerk und ohne Datenbank lauffähig:
 
     npm install
     npm test
-
-**Hinweis zu `package-lock.json`:** Dieses Repository wurde ohne Internetzugang
-zusammengestellt, deshalb fehlt eine eingecheckte Lock-Datei. Nach dem ersten
-`npm install` bei dir entsteht `package-lock.json` automatisch — bitte
-einchecken. Danach kann `npm run typecheck` `npm ci` statt `npm install`
-verwenden und der CI-Job `javascript` in `.github/workflows/ci.yml` kann wieder
-mit `cache: 'npm'` laufen (im Kommentar dort markiert).
 
 Das funktioniert auch ohne die zurückgehaltenen Bestandteile: die
 Geschäftslogik ist bewusst frei von I/O.
