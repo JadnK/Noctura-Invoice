@@ -17,15 +17,22 @@ export function dueDate(issueDateIso: string, termDays: number): string {
   return addDays(issueDateIso, termDays);
 }
 
+/**
+ * Kaufmaennische Rundung einer Division: halbe Werte werden von der Null
+ * weggerundet. Lokal gehalten, damit dieses Paket ohne Abhaengigkeiten bleibt.
+ */
+function roundHalfAwayFromZero(numerator: number, denominator: number): number {
+  const negative = numerator < 0;
+  const abs = Math.abs(numerator);
+  const quotient = Math.floor(abs / denominator);
+  const remainder = abs - quotient * denominator;
+  const rounded = remainder * 2 >= denominator ? quotient + 1 : quotient;
+  return negative ? -rounded : rounded;
+}
+
 /** Skontobetrag in Cent, gerundet wie alle Geldwerte kaufmaennisch. */
 export function earlyPaymentDiscount(grossCents: number, percentBp: number): number {
-  const product = grossCents * percentBp;
-  const negative = product < 0;
-  const abs = Math.abs(product);
-  const quotient = Math.floor(abs / 10_000);
-  const remainder = abs - quotient * 10_000;
-  const rounded = remainder * 2 >= 10_000 ? quotient + 1 : quotient;
-  return negative ? -rounded : rounded;
+  return roundHalfAwayFromZero(grossCents * percentBp, 10_000);
 }
 
 export interface OverdueInfo {
@@ -56,9 +63,5 @@ export function defaultInterest(options: {
   readonly annualRateBp: number;
 }): number {
   const numerator = options.openCents * options.annualRateBp * options.daysOverdue;
-  const denominator = 10_000 * 365;
-  const quotient = Math.floor(Math.abs(numerator) / denominator);
-  const remainder = Math.abs(numerator) - quotient * denominator;
-  const rounded = remainder * 2 >= denominator ? quotient + 1 : quotient;
-  return numerator < 0 ? -rounded : rounded;
+  return roundHalfAwayFromZero(numerator, 10_000 * 365);
 }
