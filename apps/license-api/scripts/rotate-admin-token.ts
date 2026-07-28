@@ -6,16 +6,24 @@
  * Bestehende Sessions werden widerrufen, sofern nicht --keep-sessions gesetzt ist.
  */
 import { PrismaClient } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { announceToken, createAndPersistToken } from '../src/lib/admin-token.ts';
 
 const keepSessions = process.argv.includes('--keep-sessions');
 const prisma = new PrismaClient();
-
 const result = await createAndPersistToken();
+
+// Prisma-JSON-Felder akzeptieren keine beliebige benannte Interface-Instanz.
+// Durch das explizite JSON-Objekt bleiben nur die beiden Stringwerte erhalten.
+const storedJson: Prisma.InputJsonObject = {
+  salt: result.stored.salt,
+  hash: result.stored.hash,
+};
+
 await prisma.serverSetting.upsert({
   where: { key: 'admin_token' },
-  create: { key: 'admin_token', valueJson: result.stored },
-  update: { valueJson: result.stored },
+  create: { key: 'admin_token', valueJson: storedJson },
+  update: { valueJson: storedJson },
 });
 
 if (!keepSessions) {
@@ -25,6 +33,5 @@ if (!keepSessions) {
   });
   console.log(`  ${revoked.count} aktive Sitzung(en) widerrufen.`);
 }
-
 announceToken(result, (line) => console.log(line));
 await prisma.$disconnect();
