@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import type { DashboardData } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { ErrorNotice } from '../components/ErrorNotice';
+import { Loading } from './pageUtils';
 
 /**
  * Dashboard. Vier Kennzahlen oben, darunter Verlauf und Listen. Die Zahlen
@@ -59,7 +60,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return <div className="space-y-6">{header}<ErrorNotice error={error} onRetry={() => void load()} /></div>;
   }
   if (!data) {
-    return <div className="space-y-6">{header}<p className="text-sm text-subtle">Wird geladen…</p></div>;
+    return <div className="space-y-6">{header}<Loading /></div>;
   }
 
   const max = Math.max(1, ...data.revenueSeries.map((entry) => entry.cents));

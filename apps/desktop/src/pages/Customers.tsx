@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import type { Customer, CustomerDetail, CustomerInput } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { ErrorNotice } from '../components/ErrorNotice';
+import { EmptyState, Loading } from './pageUtils';
 
 /**
  * Kundenverwaltung. Liste, Anlegen, Bearbeiten - vollstaendig gegen die
@@ -72,15 +73,12 @@ export function Customers({ onOpen }: { onOpen?: (id: string) => void }) {
 
       {error && <ErrorNotice error={error} onRetry={() => void load()} />}
 
-      {!error && rows === null && <p className="text-sm text-subtle">Wird geladen…</p>}
+      {!error && rows === null && <Loading />}
 
       {!error && rows !== null && rows.length === 0 && (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-elev1">
-          <p className="font-medium">{query ? 'Kein Treffer' : 'Noch kein Kunde angelegt'}</p>
-          <p className="mt-1 text-sm text-muted">
-            {query ? 'Andere Schreibweise versuchen oder Archivierte einblenden.' : 'Legen Sie den ersten Kunden an, um eine Rechnung schreiben zu können.'}
-          </p>
-        </div>
+        <EmptyState title={query ? 'Kein Treffer' : 'Noch kein Kunde angelegt'}>
+          {query ? 'Andere Schreibweise versuchen oder Archivierte einblenden.' : 'Legen Sie den ersten Kunden an, um eine Rechnung schreiben zu können.'}
+        </EmptyState>
       )}
 
       {!error && rows !== null && rows.length > 0 && (
@@ -176,7 +174,7 @@ function CustomerForm({ customerId, onDone, onCancel }: {
     }
   }
 
-  if (loading) return <p className="text-sm text-subtle">Wird geladen…</p>;
+  if (loading) return <Loading />;
 
   return (
     <div className="max-w-xl space-y-4">

@@ -4,6 +4,7 @@ import type { Product, ProductInput } from '../lib/api';
 import { ApiError } from '../lib/api';
 import { ErrorNotice } from '../components/ErrorNotice';
 import { Amount } from '../components/Amount';
+import { EmptyState, Loading } from './pageUtils';
 import { formatBp } from '@noctura/invoice-core';
 
 const PRODUCT_KINDS = [
@@ -75,15 +76,12 @@ export function Products() {
       />
 
       {error && <ErrorNotice error={error} onRetry={() => void load()} />}
-      {!error && rows === null && <p className="text-sm text-subtle">Wird geladen…</p>}
+      {!error && rows === null && <Loading />}
 
       {!error && rows !== null && rows.length === 0 && (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center shadow-elev1">
-          <p className="font-medium">{query ? 'Kein Treffer' : 'Noch kein Produkt angelegt'}</p>
-          <p className="mt-1 text-sm text-muted">
-            {query ? 'Andere Schreibweise versuchen.' : 'Legen Sie das erste Produkt an, um es in Rechnungen verwenden zu können.'}
-          </p>
-        </div>
+        <EmptyState title={query ? 'Kein Treffer' : 'Noch kein Produkt angelegt'}>
+          {query ? 'Andere Schreibweise versuchen.' : 'Legen Sie das erste Produkt an, um es in Rechnungen verwenden zu können.'}
+        </EmptyState>
       )}
 
       {!error && rows !== null && rows.length > 0 && (
@@ -168,7 +166,7 @@ function ProductForm({ productId, units, onDone, onCancel }: {
     }
   }
 
-  if (loading) return <p className="text-sm text-subtle">Wird geladen…</p>;
+  if (loading) return <Loading />;
 
   return (
     <div className="max-w-xl space-y-4">
