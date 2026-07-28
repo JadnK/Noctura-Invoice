@@ -1,4 +1,5 @@
 /** Daten, die ein Beleg dem Renderer liefert. Bereits formatiert, keine Rechenlogik. */
+import type { ItemColumn } from './model.ts';
 
 export interface RenderItem {
   readonly position: number;
@@ -38,4 +39,24 @@ export interface RenderDocument {
   readonly logoPath?: string;
   readonly isDraft?: boolean;
   readonly isPaid?: boolean;
+}
+
+/** Spalten der Positionstabelle ohne ausdrueckliche Vorgabe durch den Block. */
+export const DEFAULT_TABLE_COLUMNS: readonly ItemColumn[] = [
+  'position', 'description', 'quantity', 'unit_price', 'line_total',
+];
+
+/**
+ * Spalten der Positionstabelle fuer beide Renderer (HTML und Typst) gleich
+ * bestimmt (ADR-0004): ohne Steuerzeilen und ohne Steuerhinweis entfaellt
+ * die MwSt.-Spalte, egal was der Block anfordert.
+ */
+export function effectiveTableColumns(
+  doc: RenderDocument,
+  requestedColumns: readonly ItemColumn[] | undefined,
+): readonly ItemColumn[] {
+  const columns = requestedColumns ?? DEFAULT_TABLE_COLUMNS;
+  return doc.taxRows.length === 0 && doc.taxNote
+    ? columns.filter((column) => column !== 'tax_rate')
+    : columns;
 }

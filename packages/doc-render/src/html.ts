@@ -2,6 +2,7 @@
 import { escapeHtml, safeColor, sanitizeCss } from './sanitize.ts';
 import { resolvePlaceholders } from './placeholders.ts';
 import type { Block, TemplateLayout, TemplateVariant } from './model.ts';
+import { effectiveTableColumns } from './document.ts';
 import type { RenderDocument } from './document.ts';
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -61,16 +62,7 @@ function renderBlock(block: Block, doc: RenderDocument): string {
         .map((row) => `<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`)
         .join('')}</tbody></table></section>`;
     case 'items_table': {
-      const requestedColumns = block.columns ?? [
-        'position',
-        'description',
-        'quantity',
-        'unit_price',
-        'line_total',
-      ];
-      const columns = doc.taxRows.length === 0 && doc.taxNote
-        ? requestedColumns.filter((column) => column !== 'tax_rate')
-        : requestedColumns;
+      const columns = effectiveTableColumns(doc, block.columns);
       const head = columns
         .map(
           (column) =>

@@ -5,6 +5,7 @@
 import { safeColor } from './sanitize.ts';
 import { resolvePlaceholders } from './placeholders.ts';
 import type { Block, TemplateLayout } from './model.ts';
+import { effectiveTableColumns } from './document.ts';
 import type { RenderDocument } from './document.ts';
 
 /** Typst-Sonderzeichen entschaerfen. */
@@ -41,16 +42,7 @@ function renderBlock(block: Block, doc: RenderDocument): string {
         .map((r) => `[${escapeTypst(r.label)}], [${escapeTypst(r.value)}]`)
         .join(', ')})`;
     case 'items_table': {
-      const requestedColumns = block.columns ?? [
-        'position',
-        'description',
-        'quantity',
-        'unit_price',
-        'line_total',
-      ];
-      const columns = doc.taxRows.length === 0 && doc.taxNote
-        ? requestedColumns.filter((column) => column !== 'tax_rate')
-        : requestedColumns;
+      const columns = effectiveTableColumns(doc, block.columns);
       const header = columns.map((c) => `[*${escapeTypst(c)}*]`).join(', ');
       const rows = doc.items
         .filter((item) => item.kind === 'item')
