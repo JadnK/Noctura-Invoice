@@ -18,6 +18,8 @@ export const NAVIGATION: readonly NavItem[] = [
   { id: 'tax', label: 'Steuerbereich', group: 'system' },
   { id: 'settings', label: 'Einstellungen', shortcut: 'Strg + ,', group: 'system' },
   { id: 'license', label: 'Lizenz', group: 'system' },
+  { id: 'audit', label: 'Prüfprotokoll', group: 'system' },
+  { id: 'audit', label: 'Prüfprotokoll', group: 'system' },
   { id: 'help', label: 'Hilfe', group: 'system' },
 ];
 export const GROUP_LABELS: Record<NavItem['group'], string> = {

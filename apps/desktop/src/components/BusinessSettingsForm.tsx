@@ -63,6 +63,9 @@ export function BusinessSettingsForm({ value, onChange, sections = ['company', '
           <Field label="E-Mail"><input type="email" value={value.email} onChange={(event) => patch('email', event.target.value)} className={inputClass} /></Field>
           <Field label="Telefon"><input value={value.phone} onChange={(event) => patch('phone', event.target.value)} className={inputClass} /></Field>
           <Field label="Website"><input value={value.website} onChange={(event) => patch('website', event.target.value)} className={inputClass} /></Field>
+          <Field label="Empfänger-Zusatz (z. B. bei gemieteter Adresse)">
+            <input value={value.addressRecipient} onChange={(event) => patch('addressRecipient', event.target.value)} placeholder="z. B. c/o Mustermann Bürodienste" className={inputClass} />
+          </Field>
           <div />
           <Field label="Straße"><input value={value.street} onChange={(event) => patch('street', event.target.value)} className={inputClass} /></Field>
           <Field label="Hausnummer"><input value={value.houseNo} onChange={(event) => patch('houseNo', event.target.value)} className={inputClass} /></Field>

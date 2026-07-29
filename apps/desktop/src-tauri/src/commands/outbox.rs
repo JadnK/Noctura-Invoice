@@ -164,6 +164,19 @@ fn looks_like_email(value: &str) -> bool {
     !local.is_empty() && domain.contains('.') && !domain.contains(' ')
 }
 
+/// Verteiler-Adressen aus den E-Mail-Einstellungen (mehrere, durch Komma
+/// oder Semikolon getrennt - `mail.rs::recipients` parst das bereits).
+/// Bekommen eine BCC-Kopie jeder ausgehenden Rechnungs- und
+/// Zahlungsbestaetigungs-Mail.
+async fn distribution_bcc() -> Result<Option<String>, AppError> {
+    Ok(
+        sqlx::query_scalar::<_, Option<String>>("SELECT bcc FROM email_account WHERE is_default=1 LIMIT 1")
+            .fetch_optional(db::pool())
+            .await?
+            .flatten(),
+    )
+}
+
 #[tauri::command]
 pub async fn queue_invoice_email(
     invoice_id: String,
@@ -198,16 +211,18 @@ pub async fn queue_invoice_email(
         .map_err(|error| AppError::License(error.to_string()))?;
     let now = Utc::now().to_rfc3339();
     let id = Uuid::now_v7().to_string();
+    let bcc = distribution_bcc().await?;
 
     sqlx::query(
         "INSERT INTO email_queue_item
-           (id, kind, document_type, document_id, to_addr, subject, body_text,
+           (id, kind, document_type, document_id, to_addr, bcc_addr, subject, body_text,
             attachments_json, status, attempts, next_attempt_at, created_at)
-         VALUES (?1,'invoice','invoice',?2,?3,?4,?5,?6,'queued',0,?7,?7)",
+         VALUES (?1,'invoice','invoice',?2,?3,?4,?5,?6,?7,'queued',0,?8,?8)",
     )
     .bind(&id)
     .bind(invoice_id)
     .bind(to.trim())
+    .bind(bcc)
     .bind(subject.trim())
     .bind(body.trim())
     .bind(attachments)
@@ -216,4 +231,99 @@ pub async fn queue_invoice_email(
     .await?;
 
     Ok(id)
+}
+
+/// Automatische Zahlungsbestaetigung: genau einmal, sobald eine Rechnung
+/// durch `register_invoice_payment` vollstaendig bezahlt ist (siehe Aufruf
+/// in commands/documents.rs). Bestmoeglich - ein Fehler hier (keine
+/// Kunden-E-Mail hinterlegt, SMTP nicht eingerichtet) darf die bereits
+/// abgeschlossene Zahlungsbuchung nicht rueckwirkend scheitern lassen,
+/// deshalb wertet der Aufrufer das Ergebnis nur fuer's Log aus.
+pub async fn queue_payment_confirmation(invoice_id: &str) -> Result<(), AppError> {
+    let Some(row) = sqlx::query(
+        "SELECT i.number, c.email AS customer_email
+         FROM invoice i JOIN customer c ON c.id = i.customer_id
+         WHERE i.id = ?1",
+    )
+    .bind(invoice_id)
+    .fetch_optional(db::pool())
+    .await?
+    else {
+        return Ok(());
+    };
+
+    let customer_email: Option<String> = row.get("customer_email");
+    let Some(customer_email) = customer_email.filter(|value| looks_like_email(value)) else {
+        return Ok(());
+    };
+    let number: String = row.get("number");
+    let bcc = distribution_bcc().await?;
+    let now = Utc::now().to_rfc3339();
+
+    sqlx::query(
+        "INSERT INTO email_queue_item
+           (id, kind, document_type, document_id, to_addr, bcc_addr, subject, body_text,
+            status, attempts, next_attempt_at, created_at)
+         VALUES (?1,'payment_confirmation','invoice',?2,?3,?4,?5,?6,'queued',0,?7,?7)",
+    )
+    .bind(Uuid::now_v7().to_string())
+    .bind(invoice_id)
+    .bind(customer_email.trim())
+    .bind(bcc)
+    .bind(format!("Zahlungseingang bestätigt – Rechnung {number}"))
+    .bind(format!(
+        "Guten Tag,\n\nwir bestätigen den vollständigen Zahlungseingang zu Rechnung {number}. Vielen Dank!\n\nMit freundlichen Grüßen"
+    ))
+    .bind(&now)
+    .execute(db::pool())
+    .await?;
+
+    // Bestmoeglicher sofortiger Versand - schlaegt das fehl (z. B. SMTP nicht
+    // eingerichtet), bleibt die Mail als 'queued' liegen und wird beim
+    // naechsten manuellen oder automatischen Verarbeiten der Warteschlange
+    // gesendet, statt verloren zu gehen.
+    if let Ok((settings, sender)) = smtp_settings().await {
+        let _ = crate::mail::process_queue(db::pool(), &settings, &sender, 5).await;
+    }
+
+    Ok(())
+}
+
+/// Reiht eine Mahnung/Zahlungserinnerung ein - aufgerufen aus
+/// `commands/dunning.rs` fuer jede faellig gewordene Mahnstufe einer
+/// Rechnung. Bestmoeglich: ein Fehler hier darf den Mahnlauf nicht insgesamt
+/// scheitern lassen, deshalb wertet der Aufrufer das Ergebnis nur fuer's Log
+/// aus, statt es weiterzureichen.
+pub async fn queue_dunning_email(
+    invoice_id: &str,
+    to: &str,
+    subject: &str,
+    body: &str,
+) -> Result<(), AppError> {
+    if !looks_like_email(to) {
+        return Err(AppError::MissingFields("gültige Empfängeradresse".into()));
+    }
+    let bcc = distribution_bcc().await?;
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        "INSERT INTO email_queue_item
+           (id, kind, document_type, document_id, to_addr, bcc_addr, subject, body_text,
+            status, attempts, next_attempt_at, created_at)
+         VALUES (?1,'dunning','invoice',?2,?3,?4,?5,?6,'queued',0,?7,?7)",
+    )
+    .bind(Uuid::now_v7().to_string())
+    .bind(invoice_id)
+    .bind(to.trim())
+    .bind(bcc)
+    .bind(subject)
+    .bind(body)
+    .bind(&now)
+    .execute(db::pool())
+    .await?;
+
+    if let Ok((settings, sender)) = smtp_settings().await {
+        let _ = crate::mail::process_queue(db::pool(), &settings, &sender, 5).await;
+    }
+
+    Ok(())
 }

@@ -8,6 +8,8 @@ import { Products } from './pages/Products';
 import { Invoices } from './pages/Invoices';
 import { Quotes } from './pages/Quotes';
 import { CreditNotes } from './pages/CreditNotes';
+import { RecurringInvoices } from './pages/RecurringInvoices';
+import { AuditLog } from './pages/AuditLog';
 import { Discounts } from './pages/Discounts';
 import { Settings } from './pages/Settings';
 import { License } from './pages/License';
@@ -206,6 +208,8 @@ export default function App({ session }: { session: CompanySession }) {
         {route.page === 'invoices' && <Invoices initialQuery={route.query} initialId={invoiceId} />}
         {route.page === 'quotes' && <Quotes initialQuery={route.query} initialId={quoteId} />}
         {route.page === 'credit-notes' && <CreditNotes />}
+        {route.page === 'recurring' && <RecurringInvoices />}
+        {route.page === 'audit' && <AuditLog />}
         {route.page === 'customers' && <Customers onOpen={() => navigate('customers')} />}
         {route.page === 'products' && <Products />}
         {route.page === 'discounts' && <Discounts />}

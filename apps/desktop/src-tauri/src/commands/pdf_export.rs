@@ -173,7 +173,10 @@ fn json_address(value: &serde_json::Value) -> Vec<String> {
     )
     .trim()
     .to_string();
-    let mut result = vec![street, city];
+    // Empfaenger-Zusatz (z. B. bei gemieteter Adresse) steht zwischen Name und
+    // Strasse - genau die Zeile, die eine Postzustellung tatsaechlich braucht,
+    // wenn der Briefkasten auf einen anderen Namen als die Firma laeuft.
+    let mut result = vec![json_string(value, "addressRecipient").unwrap_or_default(), street, city];
     if let Some(country) = json_string(value, "country").filter(|country| country != "DE") {
         result.push(country);
     }
@@ -448,7 +451,7 @@ async fn company_block() -> Result<(String, Vec<String>, String, Option<String>)
     let row = sqlx::query(
         "SELECT p.legal_name, p.legal_form, p.owner_first_name, p.owner_last_name,
                 p.email, p.phone, p.website, p.vat_id, p.tax_number, p.logo_path,
-                a.street, a.house_no, a.postal_code, a.city, a.country,
+                a.street, a.house_no, a.addition, a.postal_code, a.city, a.country,
                 b.holder bank_holder, b.bank_name, b.iban, b.bic
          FROM company_profile p
          LEFT JOIN company_address a ON a.company_id=p.id AND a.kind='main'
@@ -470,7 +473,7 @@ async fn company_block() -> Result<(String, Vec<String>, String, Option<String>)
         row.get::<Option<String>, _>("postal_code").unwrap_or_default(),
         row.get::<Option<String>, _>("city").unwrap_or_default()
     ).trim().to_string();
-    let mut address = vec![street, city];
+    let mut address = vec![row.get::<Option<String>, _>("addition").unwrap_or_default(), street, city];
     if let Some(country) = row
         .get::<Option<String>, _>("country")
         .filter(|value| !value.trim().is_empty() && value != "DE")
@@ -1088,9 +1091,7 @@ pub async fn generate_document_pdf(
         &document.company_address
     };
     let footer = document.company_footer.as_deref().unwrap_or(&live_footer);
-    // Es gibt bewusst nur noch ein festes, kompaktes Layout. Alte Vorlagen-IDs
-    // bleiben aus Kompatibilitätsgründen in der Datenbank, beeinflussen die PDF-Ausgabe aber nicht.
-    let style = TemplateStyle::default();
+    let style = load_template_style(document.template_id.as_deref()).await?;
     let mut assets: Vec<(String, Vec<u8>)> = Vec::new();
     let mut logo_asset: Option<String> = None;
     if let Some(path) = logo_path.as_deref().filter(|value| !value.trim().is_empty()) {

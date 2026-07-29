@@ -753,6 +753,13 @@ pub async fn register_invoice_payment(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
+
+    if new_status == "paid" {
+        if let Err(error) = crate::commands::outbox::queue_payment_confirmation(&invoice_id).await {
+            tracing::warn!(?error, "Zahlungsbestaetigung konnte nicht eingereiht werden");
+        }
+    }
+
     Ok(())
 }
 
@@ -911,7 +918,7 @@ pub async fn delete_quote_draft(id: String) -> Result<(), ErrorPayloadWrapper> {
 async fn snapshot_company(executor: &mut sqlx::SqliteConnection) -> Result<String, AppError> {
     let row = sqlx::query(
         "SELECT p.legal_name, p.email, p.phone, p.website, p.vat_id, p.tax_number,
-                a.street, a.house_no, a.postal_code, a.city, a.country,
+                a.street, a.house_no, a.addition, a.postal_code, a.city, a.country,
                 b.iban, b.bic
          FROM company_profile p LEFT JOIN company_address a ON a.company_id=p.id AND a.kind='main'
          LEFT JOIN bank_account b ON b.company_id=p.id AND b.is_default=1 LIMIT 1",
@@ -925,7 +932,8 @@ async fn snapshot_company(executor: &mut sqlx::SqliteConnection) -> Result<Strin
         "iban": row.get::<Option<String>, _>("iban"),
         "bic": row.get::<Option<String>, _>("bic"), "vatId": row.get::<Option<String>,_>("vat_id"),
         "taxNumber": row.get::<Option<String>,_>("tax_number"), "street": row.get::<Option<String>,_>("street"),
-        "houseNo": row.get::<Option<String>,_>("house_no"), "postalCode": row.get::<Option<String>,_>("postal_code"),
+        "houseNo": row.get::<Option<String>,_>("house_no"), "addressRecipient": row.get::<Option<String>,_>("addition"),
+        "postalCode": row.get::<Option<String>,_>("postal_code"),
         "city": row.get::<Option<String>,_>("city"), "country": row.get::<Option<String>,_>("country"),
     }).to_string())
 }

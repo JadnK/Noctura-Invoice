@@ -232,7 +232,7 @@ async fn missing_fields(
 async fn snapshot_company(executor: &mut sqlx::SqliteConnection) -> Result<String, AppError> {
     let row = sqlx::query(
         "SELECT p.legal_name, p.email, p.phone, p.website, p.vat_id, p.tax_number,
-                a.street, a.house_no, a.postal_code, a.city, a.country,
+                a.street, a.house_no, a.addition, a.postal_code, a.city, a.country,
                 b.iban, b.bic
          FROM company_profile p LEFT JOIN company_address a
            ON a.company_id = p.id AND a.kind = 'main'
@@ -253,6 +253,7 @@ async fn snapshot_company(executor: &mut sqlx::SqliteConnection) -> Result<Strin
         "taxNumber": row.get::<Option<String>, _>("tax_number"),
         "street": row.get::<Option<String>, _>("street"),
         "houseNo": row.get::<Option<String>, _>("house_no"),
+        "addressRecipient": row.get::<Option<String>, _>("addition"),
         "postalCode": row.get::<Option<String>, _>("postal_code"),
         "city": row.get::<Option<String>, _>("city"),
         "country": row.get::<Option<String>, _>("country"),

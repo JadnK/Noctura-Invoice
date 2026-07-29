@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { ApiError, OutboxEntry } from '../lib/api';
 import { formatDateLong } from '../lib/format';
-import { EmptyState, Loading, PageError, STATUS_LABEL, buttonPrimary, toApiError } from './pageUtils';
+import { EmptyState, Loading, PageError, STATUS_LABEL, buttonPrimary, buttonSecondary, toApiError } from './pageUtils';
 
 export function Outbox() {
   const [entries, setEntries] = useState<OutboxEntry[] | null>(null);
@@ -37,9 +37,24 @@ export function Outbox() {
     catch (err) { setError(toApiError(err)); }
     finally { setBusy(false); }
   }
+  async function dunning() {
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const result = await api.runDunning();
+      setNotice(`${result.remindersSent} Mahnung(en)/Erinnerung(en) verschickt, ${result.skipped} übersprungen (nicht fällig oder bereits verschickt).`);
+      await load();
+    } catch (err) { setError(toApiError(err)); }
+    finally { setBusy(false); }
+  }
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-baseline justify-between gap-3"><div><h1 className="text-xl font-semibold tracking-tight">E-Mail-Ausgang</h1><p className="mt-1 text-sm text-muted">Persistente SMTP-Warteschlange mit Fehlerdetails und kontrollierten Wiederholungen.</p></div><button type="button" disabled={busy} onClick={() => void process()} className={buttonPrimary}>Fällige E-Mails senden</button></div>
+    <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <div><h1 className="text-xl font-semibold tracking-tight">E-Mail-Ausgang</h1><p className="mt-1 text-sm text-muted">Persistente SMTP-Warteschlange mit Fehlerdetails und kontrollierten Wiederholungen.</p></div>
+      <div className="flex gap-2">
+        <button type="button" disabled={busy} onClick={() => void dunning()} className={buttonSecondary}>Mahnlauf starten</button>
+        <button type="button" disabled={busy} onClick={() => void process()} className={buttonPrimary}>Fällige E-Mails senden</button>
+      </div>
+    </div>
     {error && <PageError error={error} retry={() => void load()} />}
     {notice && <div className="rounded border border-border bg-surface px-3 py-2 text-sm">{notice}</div>}
     {entries === null && !error && <Loading />}

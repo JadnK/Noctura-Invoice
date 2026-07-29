@@ -23,6 +23,7 @@ pub struct BusinessSettings {
     pub creditor_id: String,
     pub street: String,
     pub house_no: String,
+    pub address_recipient: String,
     pub postal_code: String,
     pub city: String,
     pub country: String,
@@ -57,6 +58,7 @@ impl Default for BusinessSettings {
             creditor_id: String::new(),
             street: String::new(),
             house_no: String::new(),
+            address_recipient: String::new(),
             postal_code: String::new(),
             city: String::new(),
             country: "DE".into(),
@@ -145,7 +147,7 @@ pub async fn get_business_settings() -> Result<BusinessSettings, ErrorPayloadWra
     }
 
     if let Some(row) = sqlx::query(
-        "SELECT street, house_no, postal_code, city, country
+        "SELECT street, house_no, addition, postal_code, city, country
          FROM company_address WHERE kind='main' LIMIT 1",
     )
     .fetch_optional(db::pool())
@@ -153,6 +155,7 @@ pub async fn get_business_settings() -> Result<BusinessSettings, ErrorPayloadWra
     {
         result.street = text(&row, "street");
         result.house_no = text(&row, "house_no");
+        result.address_recipient = text(&row, "addition");
         result.postal_code = text(&row, "postal_code");
         result.city = text(&row, "city");
         result.country = row.try_get("country").unwrap_or_else(|_| "DE".to_string());
@@ -310,16 +313,17 @@ async fn save_inner(settings: &BusinessSettings, complete: bool) -> Result<(), A
     .unwrap_or_else(|| uuid::Uuid::now_v7().to_string());
     sqlx::query(
         "INSERT INTO company_address
-           (id, company_id, kind, street, house_no, postal_code, city, country)
-         VALUES (?1,?2,'main',?3,?4,?5,?6,?7)
+           (id, company_id, kind, street, house_no, addition, postal_code, city, country)
+         VALUES (?1,?2,'main',?3,?4,?5,?6,?7,?8)
          ON CONFLICT(id) DO UPDATE SET company_id=excluded.company_id, kind='main',
-           street=excluded.street, house_no=excluded.house_no,
+           street=excluded.street, house_no=excluded.house_no, addition=excluded.addition,
            postal_code=excluded.postal_code, city=excluded.city, country=excluded.country",
     )
     .bind(address_id)
     .bind(&company_id)
     .bind(settings.street.trim())
     .bind(settings.house_no.trim())
+    .bind(settings.address_recipient.trim())
     .bind(settings.postal_code.trim())
     .bind(settings.city.trim())
     .bind(if settings.country.trim().is_empty() { "DE".to_string() } else { settings.country.trim().to_ascii_uppercase() })

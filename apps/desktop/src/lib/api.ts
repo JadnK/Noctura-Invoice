@@ -147,6 +147,34 @@ export interface CompanySession {
   role: 'admin' | 'member';
 }
 
+export interface AuditLogEntry {
+  at: string;
+  action: string;
+  objectType: string;
+  objectId: string;
+  userId: string;
+  source: string;
+}
+
+export interface AuditIntegrityResult {
+  checked: number;
+  ok: boolean;
+  brokenAt: AuditLogEntry | null;
+}
+
+export interface RecurringInvoiceSummary {
+  id: string;
+  templateInvoiceNumber: string;
+  customerName: string;
+  frequency: string;
+  intervalCount: number;
+  nextRunDate: string;
+  endDate: string | null;
+  autoFinalize: boolean;
+  autoSend: boolean;
+  active: boolean;
+}
+
 export interface CompanyUserSummary {
   id: string;
   email: string;
@@ -184,6 +212,7 @@ export interface BusinessSettings {
   creditorId: string;
   street: string;
   houseNo: string;
+  addressRecipient: string;
   postalCode: string;
   city: string;
   country: string;
@@ -612,6 +641,28 @@ export const api = {
   fetchRemoteCompanyProfile: () => call<BusinessSettings | null>('fetch_remote_company_profile'),
   pushRemoteCompanyProfile: (settings: BusinessSettings) =>
     call<void>('push_remote_company_profile', { settings }),
+
+  listAuditLog: (limit: number) => call<AuditLogEntry[]>('list_audit_log', { limit }),
+  verifyAuditLog: () => call<AuditIntegrityResult>('verify_audit_log'),
+
+  runDunning: () => call<{ remindersSent: number; skipped: number }>('run_dunning'),
+
+  createRecurringInvoice: (
+    templateInvoiceId: string,
+    frequency: 'monthly' | 'quarterly' | 'yearly',
+    intervalCount: number,
+    nextRunDate: string,
+    endDate: string | undefined,
+    autoFinalize: boolean,
+    autoSend: boolean,
+  ) => call<string>('create_recurring_invoice', {
+    templateInvoiceId, frequency, intervalCount, nextRunDate, endDate, autoFinalize, autoSend,
+  }),
+  listRecurringInvoices: () => call<RecurringInvoiceSummary[]>('list_recurring_invoices'),
+  setRecurringInvoiceActive: (id: string, active: boolean) =>
+    call<void>('set_recurring_invoice_active', { id, active }),
+  deleteRecurringInvoice: (id: string) => call<void>('delete_recurring_invoice', { id }),
+  runRecurringInvoices: () => call<{ created: number }>('run_recurring_invoices'),
 
   globalSearch: (query: string) => call<SearchResult[]>('global_search', { query }),
 
